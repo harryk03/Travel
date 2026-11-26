@@ -1,0 +1,91 @@
+import { describe, expect, it } from 'vitest';
+import { tripPhase } from './dates';
+import { currentAndUpcomingStays, newPosition, toShared } from './itinerary';
+import { parseMapsUrl } from './maps';
+import { balances, equalShares, settleUp, sharesTotal } from './money';
+import { sampleTrip } from './sample';
+import type { Expense, Traveller, TripData } from './types';
+
+describe('parseMapsUrl', () => {
+  it('reads name and precise pin from a full place link', () => {
+    const p = parseMapsUrl('https://www.google.com/maps/place/Potato+Head+Beach+Club/@-8.6795,115.1530,17z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d-8.6794587!4d115.1532404');
+    expect(p?.name).toBe('Potato Head Beach Club');
+    expect(p?.lat).toBeCloseTo(-8.6794587);
+    expect(p?.lng).toBeCloseTo(115.1532404);
+  });
+  it('handles encoded names and the @ viewport fallback', () => {
+    const p = parseMapsUrl('Check this https://www.google.com/maps/place/Caf%C3%A9+Organic/@-8.65,115.13,15z');
+    expect(p?.name).toBe('Café Organic');
+    expect(p?.lat).toBe(-8.65);
+  });
+  it('reads ?q= search and coordinate links', () => {
+    expect(parseMapsUrl('https://maps.google.com/?q=Single+Fin+Bali')?.name).toBe('Single Fin Bali');
+    const c = parseMapsUrl('https://www.google.com/maps?q=-8.7,115.2');
+    expect(c?.name).toBeNull();
+    expect(c?.lat).toBe(-8.7);
+  });
+  it('flags short links for server-side resolution', () => {
+    const p = parseMapsUrl('https://maps.app.goo.gl/AbCdEf123');
+    expect(p?.isShortLink).toBe(true);
+    expect(p?.name).toBeNull();
+  });
+  it('returns null for text without a link', () => {
+    expect(parseMapsUrl('just some text')).toBeNull();
+  });
+});
+
+describe('money', () => {
+  it('splits AUD to the cent and always sums to the total', () => {
+    const s = equalShares(100, 'AUD', ['a', 'b', 'c']);
+    expect(s.map((x) => x.amount)).toEqual([33.34, 33.33, 33.33]);
+    expect(sharesTotal(s, 'AUD')).toBe(100);
+  });
+  it('splits IDR in whole rupiah', () => {
+    const s = equalShares(1000000, 'IDR', ['a', 'b', 'c', 'd', 'e', 'f']);
+    expect(s.every((x) => Number.isInteger(x.amount))).toBe(true);
+    expect(sharesTotal(s, 'IDR')).toBe(1000000);
+  });
+  it('keeps currencies separate, counts repayments, and settles up to zero', () => {
+    const tr: Traveller[] = ['a', 'b', 'c'].map((id) => ({ id, trip_id: 't', name: id, user_id: null }));
+    const base = { trip_id: 't', split_type: 'equal' as const, spent_on: '2026-12-01', description: '' };
+    const ex: Expense[] = [
+      { ...base, id: '1', kind: 'expense', amount: 90, currency: 'AUD', paid_by: 'a', shares: equalShares(90, 'AUD', ['a', 'b', 'c']) },
+      { ...base, id: '2', kind: 'expense', amount: 300000, currency: 'IDR', paid_by: 'b', shares: equalShares(300000, 'IDR', ['a', 'b', 'c']) },
+      { ...base, id: '3', kind: 'repayment', amount: 30, currency: 'AUD', paid_by: 'b', shares: [{ traveller_id: 'a', amount: 30 }] },
+    ];
+    const net = balances(ex, tr);
+    expect(net.AUD).toEqual({ a: 30, b: 0, c: -30 });
+    expect(net.IDR).toEqual({ a: -100000, b: 200000, c: -100000 });
+    const plan = settleUp(net.AUD, 'AUD');
+    expect(plan).toEqual([{ from: 'c', to: 'a', amount: 30, currency: 'AUD' }]);
+  });
+});
+
+describe('itinerary', () => {
+  it('share view drops private notes and booking references', () => {
+    const s = sampleTrip('Me');
+    const data: TripData = { ...s, members: [], trip: { ...s.trip, invite_code: 'code', share_token: 'tok', share_enabled: true } };
+    const shared = JSON.stringify(toShared(data));
+    expect(shared).not.toMatch(/private_notes|booking_ref|EXAMPLE-ABC123|Gate code|invite|tok"|expense|amount/);
+    expect(shared).toContain('Surf lesson');
+  });
+  it('finds current and upcoming stays (check-out day is not a night)', () => {
+    const s = sampleTrip();
+    const stays = s.items.filter((i) => i.kind === 'stay');
+    const { current, upcoming } = currentAndUpcomingStays(s.items, stays[0].day);
+    expect(current.map((x) => x.id)).toEqual([stays[0].id]);
+    expect(upcoming.map((x) => x.id)).toEqual([stays[1].id]);
+    expect(currentAndUpcomingStays(s.items, stays[1].day).current.map((x) => x.id)).toEqual([stays[1].id]);
+  });
+  it('slots new timed items in time order', () => {
+    const day = [{ position: 1, start_time: '08:00' }, { position: 2, start_time: '12:00' }] as never[];
+    expect(newPosition(day, '10:00')).toBe(1.5);
+    expect(newPosition(day, '07:00')).toBe(0);
+    expect(newPosition(day, null)).toBe(3);
+  });
+  it('trip phase', () => {
+    expect(tripPhase('2026-12-10', '2026-12-20', '2026-12-01')).toEqual({ phase: 'before', days: 9 });
+    expect(tripPhase('2026-12-10', '2026-12-20', '2026-12-12')).toEqual({ phase: 'during', day: 3, total: 11 });
+    expect(tripPhase('2026-12-10', '2026-12-20', '2026-12-21')).toEqual({ phase: 'after' });
+  });
+});
