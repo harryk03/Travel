@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { fmtDay, todayISO } from '../lib/dates';
 import { sortItems, staysOn, tripDays } from '../lib/itinerary';
 import type { Item, SharedItem } from '../lib/types';
-import { useTrip } from '../ui';
+import { Icon, useTrip } from '../ui';
 import { ItemCard } from './ItemCard';
 
 /** Day-by-day list. Used by members (editable) and on the share page (read-only). */
@@ -30,24 +30,23 @@ export function DayList<T extends Item | SharedItem>({ items, start, end, render
         return (
           <section key={day} className={`day ${day === today ? 'is-today' : ''}`} ref={day === today ? todayRef : undefined}>
             <header className="day-head">
-              <div>
-                <span className="day-num">{start && day >= start ? `Day ${n + 1 - days.filter((d) => d < start).length}` : 'Extra day'}</span>
-                <span className="day-date">{fmtDay(day, { weekday: 'long', day: 'numeric', month: 'short' })}</span>
-              </div>
-              {day === today && <span className="today-chip">Today</span>}
+              <span className="day-num">{start && day >= start ? `Day ${n + 1 - days.filter((d) => d < start).length}` : 'Extra'}</span>
+              <h2 className="day-date">{fmtDay(day, { weekday: 'long', day: 'numeric', month: 'short' })}</h2>
+              {day === today && <span className="today-tag">Today</span>}
             </header>
             {staying.map((s) => (
-              <div key={s.id} className="staying-line">🛏️ Staying at <strong>{s.location_name || s.title}</strong></div>
+              <p key={s.id} className="staying"><Icon name="stay" size={16} />{s.status === 'tentative' && !s.location_name ? s.title : `Staying at ${s.location_name || s.title}`}</p>
             ))}
-            <div className="stack">
-              {dayItems.map((i, idx) => (
-                <ItemCard key={i.id} item={i} onOpen={onOpen && (() => onOpen(i))}
-                  onToggleStatus={onToggleStatus && (() => onToggleStatus(i))}
-                  actions={renderActions?.(i, dayItems, idx)} />
-              ))}
-              {dayItems.length === 0 && <p className="muted small">Nothing planned.</p>}
-            </div>
-            {onAdd && <button className="add-row" onClick={() => onAdd(day)}>+ Add to {fmtDay(day)}</button>}
+            {dayItems.length > 0 ? (
+              <div className="plans">
+                {dayItems.map((i, idx) => (
+                  <ItemCard key={i.id} item={i} onOpen={onOpen && (() => onOpen(i))}
+                    onToggleStatus={onToggleStatus && (() => onToggleStatus(i))}
+                    actions={renderActions?.(i, dayItems, idx)} />
+                ))}
+              </div>
+            ) : !onAdd && staying.length === 0 ? <p className="nothing">Nothing planned</p> : null}
+            {onAdd && <button className="add-row" onClick={() => onAdd(day)}><Icon name="plus" size={16} />Add to {fmtDay(day, { day: 'numeric', month: 'short' })}</button>}
           </section>
         );
       })}
@@ -71,8 +70,8 @@ export function Itinerary() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Itinerary</h1>
-        {!offline && <button className="btn btn-primary" onClick={() => editItem({ day: trip.start_date ?? todayISO() })}>+ Add plan</button>}
+        <div><h1 className="page-title">Itinerary</h1><p className="page-sub">{items.length} {items.length === 1 ? 'plan' : 'plans'}</p></div>
+        {!offline && <button className="btn btn-primary" onClick={() => editItem({ day: trip.start_date ?? todayISO() })}><Icon name="plus" size={16} />Add plan</button>}
       </div>
       <DayList items={items} start={trip.start_date} end={trip.end_date}
         onOpen={offline ? undefined : (i) => editItem(i)}
@@ -80,8 +79,8 @@ export function Itinerary() {
         onToggleStatus={offline ? undefined : (i) => void act(() => backend.save('items', { ...i, status: i.status === 'confirmed' ? 'tentative' : 'confirmed' }))}
         renderActions={offline ? undefined : (i, dayItems, idx) => (
           <span className="reorder" onClick={(e) => e.stopPropagation()}>
-            <button className="icon-btn sm" aria-label="Move up" disabled={idx === 0} onClick={() => move(dayItems, idx, -1)}>↑</button>
-            <button className="icon-btn sm" aria-label="Move down" disabled={idx === dayItems.length - 1} onClick={() => move(dayItems, idx, 1)}>↓</button>
+            <button className="icon-btn sm" aria-label="Move up" disabled={idx === 0} onClick={() => move(dayItems, idx, -1)}><Icon name="up" size={16} /></button>
+            <button className="icon-btn sm" aria-label="Move down" disabled={idx === dayItems.length - 1} onClick={() => move(dayItems, idx, 1)}><Icon name="down" size={16} /></button>
           </span>
         )} />
     </div>

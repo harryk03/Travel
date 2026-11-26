@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { fmtDay, todayISO } from '../lib/dates';
 import { balances, CURRENCIES, equalShares, formatMoney, round, roundUpOwed, settleUp, sharesTotal, unit, type Settlement } from '../lib/money';
 import type { Currency, Expense, Share } from '../lib/types';
-import { Empty, Field, Segmented, Sheet, useTrip } from '../ui';
+import { Empty, Field, Icon, Segmented, Sheet, useTrip } from '../ui';
 
 export function Expenses() {
   const { data, offline } = useTrip();
@@ -16,7 +16,13 @@ export function Expenses() {
     const order = (id: string) => travellers.findIndex((t) => t.id === id);
     return settleUp(expenses, currency).sort((a, b) => order(a.from) - order(b.from) || order(a.to) - order(b.to));
   }, [expenses, travellers, currency]);
-  const total = expenses.filter((e) => e.kind === 'expense' && e.currency === currency).reduce((s, e) => s + e.amount, 0);
+  const spent = expenses.filter((e) => e.kind === 'expense' && e.currency === currency);
+  const total = spent.reduce((s, e) => s + e.amount, 0);
+  const paid = new Map<string, number>();
+  spent.forEach((e) => paid.set(e.paid_by, (paid.get(e.paid_by) ?? 0) + e.amount));
+  const payers = [...paid.entries()].sort((a, b) => b[1] - a[1]);
+  const shades = ['var(--accent)', 'var(--text2)', 'var(--muted)', 'var(--line-strong)'];
+  const shown = expenses;
 
   const repay = (s: Settlement) => setForm({
     kind: 'repayment', amount: s.amount, currency: s.currency, paid_by: s.from, split_type: 'custom',
@@ -26,65 +32,77 @@ export function Expenses() {
   return (
     <div className="page">
       <div className="page-head">
-        <h1>Expenses</h1>
-        {!offline && <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense', currency })}>+ Add expense</button>}
+        <div><h1 className="page-title">Expenses</h1><p className="page-sub">Everyone pays back whoever paid</p></div>
+        {!offline && <button className="btn btn-primary" onClick={() => setForm({ kind: 'expense', currency })}><Icon name="plus" size={16} />Add expense</button>}
       </div>
 
-      <Segmented value={currency} onChange={setCurrency} options={CURRENCIES.map((c) => ({ value: c, label: c === 'AUD' ? '🇦🇺 AUD' : '🇮🇩 IDR' }))} />
+      <Segmented value={currency} onChange={setCurrency} options={CURRENCIES.map((c) => ({ value: c, label: c }))} />
 
-      <section className="card balance-card">
-        <div className="ov-label">Group spend in {currency}</div>
-        <div className="balance-total">{formatMoney(total, currency)}</div>
-        <ul className="balances">
-          {travellers.map((t) => {
-            const v = net[currency][t.id] ?? 0;
-            return (
-              <li key={t.id}>
-                <span>{t.name}</span>
-                <span className={v > 0 ? 'pos' : v < 0 ? 'neg' : 'muted'}>
-                  {roundUpOwed(v, currency) === 0 ? 'settled' : v > 0 ? `gets back ${formatMoney(roundUpOwed(v, currency), currency, true)}` : `owes ${formatMoney(roundUpOwed(v, currency), currency, true)}`}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
-
-      <section>
-        <h3 className="section-title">🤝 Who pays who ({currency})</h3>
-        <p className="muted small">Everyone pays back whoever paid. Between two people who both paid for things, only the difference is shown.</p>
-        {plan.length === 0 ? <p className="muted">Everyone’s square in {currency}.</p> : (
-          <div className="stack">
-            {plan.map((s, i) => (
-              <div key={i} className="card settle-row">
-                <span><strong>{name(s.from)}</strong> {name(s.from) === 'You' ? 'pay' : 'pays'} <strong>{name(s.to)}</strong></span>
-                <span className="settle-amt">{formatMoney(s.amount, s.currency, true)}</span>
-                {!offline && <button className="btn btn-sm" onClick={() => repay(s)}>Record</button>}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h3 className="section-title">🧾 All expenses</h3>
-        {expenses.length === 0 ? <Empty emoji="🧾" title="No expenses yet" /> : (
-          <div className="stack">
-            {expenses.map((e) => (
-              <div key={e.id} className={`card expense-row ${e.kind}`} role="button" tabIndex={0} onClick={offline ? undefined : () => setForm(e)}>
-                <div className="exp-emoji">{e.kind === 'repayment' ? '💸' : '🧾'}</div>
-                <div className="exp-main">
-                  <div className="item-title">{e.kind === 'repayment' ? `${name(e.paid_by)} → ${name(e.shares[0]?.traveller_id ?? '')}` : e.description || 'Expense'}</div>
-                  <div className="item-sub">
-                    {e.kind === 'repayment' ? 'Repayment' : `Paid by ${name(e.paid_by)} · ${e.split_type === 'equal' ? `split ${e.shares.length} ways` : 'custom split'}`} · {fmtDay(e.spent_on)}
-                  </div>
+      <div className="ex-grid">
+        <div>
+          <section className="card spend">
+            <p className="spend-k">Group spend</p>
+            <p className="spend-v">{formatMoney(total, currency)}</p>
+            {payers.length > 0 && (
+              <>
+                <div className="paidbar" aria-hidden="true">
+                  {payers.map(([id, v], i) => <span key={id} style={{ flex: v, background: shades[Math.min(i, 3)] }} />)}
                 </div>
-                <div className="exp-amt">{formatMoney(e.amount, e.currency)}</div>
+                <div className="legend">
+                  {payers.map(([id, v], i) => <span key={id}><i style={{ background: shades[Math.min(i, 3)] }} />{name(id)} paid<b>{formatMoney(v, currency, true)}</b></span>)}
+                </div>
+              </>
+            )}
+            <div className="balances">
+              {travellers.map((t) => {
+                const v = net[currency][t.id] ?? 0;
+                const owed = roundUpOwed(v, currency);
+                return (
+                  <div key={t.id} className="bal">
+                    <span>{t.name}</span>
+                    <span className={`amt ${owed === 0 ? 'muted' : v > 0 ? 'pos' : 'neg'}`}>
+                      {owed === 0 ? 'settled' : v > 0 ? `gets back ${formatMoney(owed, currency, true)}` : `owes ${formatMoney(owed, currency, true)}`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="section">
+            <div className="section-head"><h2 className="section-title">All expenses</h2><span className="section-meta">{shown.length}</span></div>
+            {shown.length === 0 ? <Empty title="No expenses yet" /> : (
+              <div className="list">
+                {shown.map((e) => (
+                  <div key={e.id} className={`exp ${e.kind}`} role="button" tabIndex={0} onClick={offline ? undefined : () => setForm(e)}
+                    onKeyDown={(ev) => !offline && ev.key === 'Enter' && setForm(e)}>
+                    <span className="exp-title">{e.kind === 'repayment' ? `${name(e.paid_by)} paid ${name(e.shares[0]?.traveller_id ?? '')}` : e.description || 'Expense'}</span>
+                    <span className="exp-amt">{formatMoney(e.amount, e.currency)}</span>
+                    <span className="exp-sub">
+                      {e.kind === 'repayment' ? 'Repayment' : `Paid by ${name(e.paid_by)} · ${e.split_type === 'equal' ? `split ${e.shares.length} ways` : 'custom split'}`} · {fmtDay(e.spent_on)}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
-      </section>
+            )}
+          </section>
+        </div>
+
+        <section className="section ledger-col">
+          <div className="section-head"><h2 className="section-title">Who pays who</h2><span className="section-meta">Rounded up</span></div>
+          {plan.length === 0 ? <p className="muted">Everyone’s square in {currency}</p> : (
+            <div className="ledger">
+              {plan.map((s, i) => (
+                <div key={i} className="owe">
+                  <span className="who">{name(s.from)}<span className="arrow">→</span>{name(s.to)}</span>
+                  <span className="amt">{formatMoney(s.amount, s.currency, true)}</span>
+                  {!offline && <button className="btn btn-sm" onClick={() => repay(s)}>Record</button>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
 
       {form && <ExpenseForm initial={form} onClose={() => setForm(null)} />}
     </div>

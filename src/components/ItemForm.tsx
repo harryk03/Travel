@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { newPosition } from '../lib/itinerary';
 import { parseMapsUrl } from '../lib/maps';
 import { KIND_META, type Item, type ItemKind } from '../lib/types';
-import { Field, Segmented, Sheet, useTrip } from '../ui';
+import { Field, Icon, Segmented, Sheet, useTrip } from '../ui';
 
 const KINDS = Object.keys(KIND_META) as ItemKind[];
 const s = (v: string | null | undefined) => v ?? '';
@@ -69,14 +69,14 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
       <div className="kind-picker">
         {KINDS.map((k) => (
           <button key={k} type="button" className={f.kind === k ? 'on' : ''} onClick={() => setF({ ...f, kind: k })}>
-            <span>{KIND_META[k].emoji}</span>{KIND_META[k].label}
+            <Icon name={k} size={16} />{KIND_META[k].label}
           </button>
         ))}
       </div>
       <Field label="Title"><input value={f.title} onChange={set('title')} placeholder={f.kind === 'flight' ? 'e.g. QF43 SYD → DPS' : 'What’s the plan?'} autoFocus={isNew} /></Field>
       <Field label="Status" group>
         <Segmented value={f.status} onChange={(v) => setF({ ...f, status: v })}
-          options={[{ value: 'confirmed', label: '✓ Confirmed' }, { value: 'tentative', label: '? Tentative' }]} />
+          options={[{ value: 'confirmed', label: 'Confirmed' }, { value: 'tentative', label: 'Tentative' }]} />
       </Field>
       <div className="row2">
         <Field label={f.kind === 'stay' ? 'Check-in' : 'Day'}><input type="date" value={f.day} onChange={set('day')} /></Field>
@@ -91,7 +91,7 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
       <Field label="Notes" hint="Visible to friends on the share link."><textarea rows={2} value={f.notes} onChange={set('notes')} /></Field>
       <Field label="Who can see this" group hint={f.visible_to ? 'Only these people’s accounts can see it. It’s also left off the share link.' : 'Everyone in the trip, and on the share link.'}>
         <Segmented value={f.visible_to ? 'some' : 'all'} onChange={(v) => setF({ ...f, visible_to: v === 'all' ? null : (f.visible_to ?? data.travellers.filter((t) => t.user_id === me.id).map((t) => t.id)) })}
-          options={[{ value: 'all', label: 'Everyone' }, { value: 'some', label: '🔒 Only some people' }]} />
+          options={[{ value: 'all', label: 'Everyone' }, { value: 'some', label: 'Only some people' }]} />
       </Field>
       {f.visible_to && (
         <ul className="split-list">
@@ -111,7 +111,7 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
         <p className="warn">You’re not ticked, so you won’t be able to see this after saving.</p>
       )}
       <fieldset className="private-box">
-        <legend>🔒 Travelling group only</legend>
+        <legend>Travelling group only</legend>
         <Field label="Booking reference"><input value={f.booking_ref} onChange={set('booking_ref')} /></Field>
         <Field label="Private notes" hint="Never shown on the share link."><textarea rows={2} value={f.private_notes} onChange={set('private_notes')} /></Field>
       </fieldset>

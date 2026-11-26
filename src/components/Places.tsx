@@ -144,7 +144,7 @@ function PlaceForm({ initial, onClose, onSaved, onRemove }: { initial: Partial<P
       </Field>
       <Field label="Area or address (optional)"><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} placeholder="e.g. Canggu" /></Field>
       <Field label="Google Maps link (optional)"><input value={f.maps_url} onChange={(e) => setF({ ...f, maps_url: e.target.value })} inputMode="url" /></Field>
-      {initial.lat != null && <p className="field-hint">📍 Pin found: {initial.lat?.toFixed(5)}, {initial.lng?.toFixed(5)}</p>}
+      {initial.lat != null && <p className="field-hint">Pin found: {initial.lat?.toFixed(5)}, {initial.lng?.toFixed(5)}</p>}
       <Field label="Notes (optional)"><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
     </Sheet>
   );

@@ -152,32 +152,33 @@ function TripScreen({ tripId, user, onSwitch, onSignOut }: { tripId: string; use
     <Ctx.Provider value={ctx}>
       <div className="app">
         <nav className="sidebar" aria-label="Sections">
-          <div className="side-brand">🌴 Trip HQ</div>
+          <div className="wordmark"><span className="mark"><Icon name="directions" size={12} /></span>Trip HQ</div>
+          <p className="side-label">{trip.name}</p>
           {TABS.map((t) => (
             <button key={t.id} className={tab === t.id ? 'nav-btn on' : 'nav-btn'} onClick={() => setTab(t.id)} aria-current={tab === t.id}>
-              <Icon name={t.id} /> <span>{t.label}</span>
+              <Icon name={t.id} size={16} /><span>{t.label}</span>
             </button>
           ))}
         </nav>
 
         <div className="main">
           <header className="topbar">
-            <div className="topbar-text">
+            <div className="trip">
               <div className="trip-name">{trip.name}</div>
-              <div className="trip-sub">{trip.destination ? `${trip.destination} · ` : ''}{fmtRange(trip.start_date, trip.end_date)}</div>
+              <div className="trip-dates">{fmtRange(trip.start_date, trip.end_date)}</div>
             </div>
-            <button className="btn btn-share" onClick={() => setSheet('share')}><Icon name="share" size={18} /> Share</button>
-            <button className="icon-btn" onClick={() => setSheet('settings')} aria-label="Trip settings"><Icon name="settings" /></button>
+            <button className="btn btn-ghost" onClick={() => setSheet('share')} aria-label="Share"><Icon name="share" size={16} /><span className="share-label">Share</span></button>
+            <button className="icon-btn" onClick={() => setSheet('settings')} aria-label="Trip settings"><Icon name="settings" size={18} /></button>
           </header>
-          {offline && <div className="offline-bar">Offline — showing your last synced plans. Editing is paused.</div>}
-          {backend.mode === 'demo' && <div className="demo-bar">Demo mode — data stays in this browser only.</div>}
 
           <main className="content">
+            {offline && <p className="note"><span className="note-dot warn-dot" />Offline, showing your last synced plans. Editing is paused</p>}
+            {backend.mode === 'demo' && <p className="note"><span className="note-dot" />Demo mode, data stays in this browser only</p>}
             {trip.is_example && <ExampleBanner />}
             {tab === 'overview' && (
               <div className="page">
-                <div className="page-head"><h1>Overview</h1></div>
                 <OverviewBody items={data.items} start={trip.start_date} end={trip.end_date}
+                  name={trip.name} subtitle={[trip.destination, `${data.travellers.length} ${data.travellers.length === 1 ? 'traveller' : 'travellers'}`].filter(Boolean).join(' · ')}
                   onOpen={offline ? undefined : (i) => setEditing(i)}
                   onToggleStatus={offline ? undefined : (i) => void ctx.act(() => backend.save('items', { ...i, status: i.status === 'confirmed' ? 'tentative' : 'confirmed' }))} />
               </div>
@@ -191,7 +192,7 @@ function TripScreen({ tripId, user, onSwitch, onSignOut }: { tripId: string; use
         <nav className="tabbar" aria-label="Sections">
           {TABS.map((t) => (
             <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => setTab(t.id)} aria-current={tab === t.id}>
-              <Icon name={t.id} /><span>{t.label}</span>
+              <Icon name={t.id} size={20} /><span>{t.label}</span>
             </button>
           ))}
         </nav>

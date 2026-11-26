@@ -1,8 +1,8 @@
+import { useContext } from 'react';
 import { fmtDay, fmtTime } from '../lib/dates';
 import { directionsUrl, hasLocation, openInMapsUrl } from '../lib/maps';
-import { KIND_META, type Item, type SharedItem } from '../lib/types';
-import { useContext } from 'react';
-import { Ctx, StatusPill } from '../ui';
+import { type Item, type SharedItem } from '../lib/types';
+import { Ctx, Icon, StatusPill } from '../ui';
 
 interface Props {
   item: Item | SharedItem;
@@ -10,6 +10,10 @@ interface Props {
   onToggleStatus?: () => void;
   showDay?: boolean;
   actions?: React.ReactNode;
+  /** Hide map links (used for the short "Coming up" list). */
+  compact?: boolean;
+  /** Highlight the stop on the route line (the next thing happening). */
+  next?: boolean;
 }
 
 export function timeLabel(i: Item | SharedItem): string {
@@ -23,46 +27,50 @@ export function MapLinks({ p }: { p: Parameters<typeof openInMapsUrl>[0] }) {
   const dir = directionsUrl(p);
   return (
     <span className="map-links" onClick={(e) => e.stopPropagation()}>
-      {open && <a href={open} target="_blank" rel="noreferrer">Map</a>}
-      {dir && <a href={dir} target="_blank" rel="noreferrer">Directions</a>}
+      {open && <a href={open} target="_blank" rel="noreferrer"><Icon name="map" size={16} />Map</a>}
+      {dir && <a href={dir} target="_blank" rel="noreferrer"><Icon name="directions" size={16} />Directions</a>}
     </span>
   );
 }
 
-export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions }: Props) {
-  const meta = KIND_META[item.kind];
+/** One plan on the day's route: time, a stop on the dotted line, and the details. */
+export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions, compact, next }: Props) {
   const full = item as Item;
   const ctx = useContext(Ctx);
   const audience = full.visible_to && ctx
     ? ctx.data.travellers.filter((t) => full.visible_to!.includes(t.id)).map((t) => t.name).join(', ')
     : null;
+  const where = item.location_name || item.address;
+  const privateBits = 'booking_ref' in item ? [full.booking_ref && `Ref ${full.booking_ref}`, full.private_notes].filter(Boolean).join(' · ') : '';
   return (
-    <div className={`card item-card kind-${item.kind} status-${item.status}`} onClick={onOpen} role={onOpen ? 'button' : undefined}
-      tabIndex={onOpen ? 0 : undefined} onKeyDown={(e) => onOpen && (e.key === 'Enter') && onOpen()}>
-      <div className="item-emoji" aria-hidden="true">{meta.emoji}</div>
-      <div className="item-main">
-        <div className="item-top">
-          {(showDay || item.start_time) && (
-            <span className="item-time">{showDay && fmtDay(item.day)}{showDay && item.start_time && ' · '}{timeLabel(item)}</span>
-          )}
+    <div className={`plan kind-${item.kind} ${next ? 'next' : ''}`} onClick={onOpen} role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined} onKeyDown={(e) => onOpen && e.key === 'Enter' && onOpen()}>
+      <div className="plan-time">
+        {showDay ? (
+          <><span>{fmtDay(item.day, { day: 'numeric', month: 'short' })}</span>{item.start_time && <span className="end">{fmtTime(item.start_time)}</span>}</>
+        ) : item.start_time ? (
+          <>{fmtTime(item.start_time)}{item.end_time && <span className="end">{fmtTime(item.end_time)}</span>}</>
+        ) : <span className="muted">–</span>}
+      </div>
+      <div className="plan-rail"><span className="stop-dot" /></div>
+      <div className="plan-body">
+        <div className="plan-line1"><Icon name={item.kind} size={16} /><span className="plan-title">{item.title}</span></div>
+        <div className="plan-meta">
+          {where && <><span>{where}</span><span className="sep">·</span></>}
           <span onClick={(e) => e.stopPropagation()}><StatusPill status={item.status} onClick={onToggleStatus} /></span>
         </div>
-        <div className="item-title">{item.title}</div>
         {item.kind === 'stay' && item.end_day && (
-          <div className="item-sub">Check-in {fmtDay(item.day)} · Check-out {fmtDay(item.end_day)}</div>
+          <p className="plan-note">Check-in {fmtDay(item.day)} · check-out {fmtDay(item.end_day)}</p>
         )}
-        {(item.location_name || item.address) && (
-          <div className="item-sub">📍 {item.location_name || item.address}</div>
+        {item.notes && <p className="plan-note">{item.notes}</p>}
+        {audience && <span className="plan-private"><Icon name="lock" size={14} />Only {audience}</span>}
+        {privateBits && <span className="plan-private"><Icon name="lock" size={14} />{privateBits}</span>}
+        {(!compact || actions) && (
+          <div className="plan-links">
+            {!compact && <MapLinks p={item} />}
+            {actions}
+          </div>
         )}
-        {audience && <div className="item-audience">🔒 Only {audience}</div>}
-        {item.notes && <div className="item-notes">{item.notes}</div>}
-        {'booking_ref' in item && (full.booking_ref || full.private_notes) && (
-          <div className="item-private">🔒 {[full.booking_ref && `Ref ${full.booking_ref}`, full.private_notes].filter(Boolean).join(' · ')}</div>
-        )}
-        <div className="item-foot">
-          <MapLinks p={item} />
-          {actions}
-        </div>
       </div>
     </div>
   );

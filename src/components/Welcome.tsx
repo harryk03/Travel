@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { backend } from '../lib/config';
 import { seedExampleTrip } from '../lib/seed';
 import type { Trip, User } from '../lib/types';
-import { Field } from '../ui';
+import { Field, Icon } from '../ui';
 
 export function AuthScreen() {
   const [mode, setMode] = useState<'in' | 'up' | 'reset'>('in');
@@ -28,9 +28,9 @@ export function AuthScreen() {
     setBusy(false);
   };
   return (
-    <div className="center-screen brand-bg">
+    <div className="center-screen">
       <form className="card narrow auth" onSubmit={submit}>
-        <div className="logo">🌴</div>
+        <div className="logo"><span className="mark"><Icon name="directions" size={16} /></span></div>
         <h1>Trip HQ</h1>
         <p className="muted">Plan the trip together. Share it with everyone.</p>
         {mode === 'up' && <Field label="Your name"><input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" /></Field>}
@@ -69,9 +69,9 @@ export function SetPasswordScreen({ onDone }: { onDone: () => void }) {
     setBusy(false);
   };
   return (
-    <div className="center-screen brand-bg">
+    <div className="center-screen">
       <form className="card narrow auth" onSubmit={submit}>
-        <div className="logo">🔑</div>
+        <div className="logo"><span className="mark"><Icon name="lock" size={16} /></span></div>
         <h1>Set a new password</h1>
         <p className="muted">At least 8 characters.</p>
         <Field label="New password"><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} autoComplete="new-password" autoFocus /></Field>
@@ -103,9 +103,9 @@ export function TripPicker({ trips, user, joinCode, onOpen, onSignOut }: {
   const cloud = backend.mode === 'cloud';
 
   return (
-    <div className="center-screen brand-bg">
+    <div className="center-screen">
       <div className="card narrow picker">
-        <div className="logo">🌴</div>
+        <div className="logo"><span className="mark"><Icon name="directions" size={16} /></span></div>
         <h1>Your trips</h1>
         {msg && <p className="warn">{msg}</p>}
         {cloud && (
@@ -123,7 +123,7 @@ export function TripPicker({ trips, user, joinCode, onOpen, onSignOut }: {
         {trips.length > 0 && (
           <div className="picker-sec">
             <h3>Open a trip</h3>
-            {trips.map((t) => <button key={t.id} className="trip-btn" onClick={() => onOpen(t.id)}>🌏 {t.name}</button>)}
+            {trips.map((t) => <button key={t.id} className="trip-btn" onClick={() => onOpen(t.id)}>{t.name}</button>)}
           </div>
         )}
         <form className="picker-sec" onSubmit={(e) => {
@@ -141,7 +141,7 @@ export function TripPicker({ trips, user, joinCode, onOpen, onSignOut }: {
         </form>
         <div className="picker-sec">
           <button className="btn btn-block" disabled={busy} onClick={() => run(() => seedExampleTrip(backend, name || 'You'))}>
-            🧪 Load the example Bali trip
+            Load the example Bali trip
           </button>
           <p className="muted small">Made-up sample data, clearly marked. Delete it any time from settings.</p>
         </div>
