@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { extractUrl, isGoogleMapsUrl, parseMapsUrl, resolveShortLink } from '../lib/maps';
-import { CATEGORY_META, type Place, type PlaceCategory } from '../lib/types';
-import { Empty, Field, Sheet, useTrip } from '../ui';
+import { fmtDay } from '../lib/dates';
+import { extractUrl, isGoogleMapsUrl, parseMapsUrl, resolveShortLink, safeHttpUrl } from '../lib/maps';
+import { CATEGORY_META, type InboxItem, type Place, type PlaceCategory } from '../lib/types';
+import { Empty, Field, Icon, Sheet, useTrip } from '../ui';
 import { MapLinks } from './ItemCard';
 
 const CATS = Object.keys(CATEGORY_META) as PlaceCategory[];
@@ -25,6 +26,18 @@ export function Places() {
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState('');
   const [form, setForm] = useState<Partial<Place> | null>(null);
+  const [fromInbox, setFromInbox] = useState<string | null>(null);
+  const [showDismissed, setShowDismissed] = useState(false);
+  const inbox = data.inbox;
+  const fresh = inbox?.filter((x) => x.status === 'new') ?? [];
+  const dismissed = inbox?.filter((x) => x.status === 'dismissed') ?? [];
+  const addFromInbox = (x: InboxItem) => {
+    const label = x.note ?? '';
+    setFromInbox(x.id);
+    setForm({ name: label, category: guessCategory(`${label} ${x.caption ?? ''}`), source_url: x.url });
+  };
+  const setStatus = (x: InboxItem, status: InboxItem['status']) =>
+    act(() => backend.updateInbox(x.id, { status }), status === 'dismissed' ? 'Dismissed' : 'Back in the inbox');
 
   const counts = CATS.reduce((m, c) => ({ ...m, [c]: data.places.filter((p) => p.category === c).length }), {} as Record<PlaceCategory, number>);
   const shown = data.places.filter((p) => filter === 'all' || p.category === filter);
@@ -71,6 +84,24 @@ export function Places() {
         </div>
       )}
 
+      {inbox && (fresh.length > 0 || (showDismissed && dismissed.length > 0)) && (
+        <section className="inbox" aria-label="Inbox">
+          <div className="section-head">
+            <h2 className="section-title">Inbox</h2>
+            <span className="section-meta">{fresh.length} new</span>
+          </div>
+          <div className="inbox-list">
+            {fresh.map((x) => <InboxRow key={x.id} x={x} offline={offline} onAdd={() => addFromInbox(x)} onDismiss={() => setStatus(x, 'dismissed')} />)}
+            {showDismissed && dismissed.map((x) => <InboxRow key={x.id} x={x} offline={offline} onRestore={() => setStatus(x, 'new')} />)}
+          </div>
+        </section>
+      )}
+      {inbox && dismissed.length > 0 && (
+        <button className="link-btn inbox-toggle" onClick={() => setShowDismissed(!showDismissed)}>
+          {showDismissed ? 'Hide dismissed' : `Show dismissed (${dismissed.length})`}
+        </button>
+      )}
+
       <div className="chips" role="tablist">
         <button className={filter === 'all' ? 'chip on' : 'chip'} onClick={() => setFilter('all')}>All {data.places.length}</button>
         {CATS.filter((c) => counts[c] > 0).map((c) => (
@@ -95,6 +126,9 @@ export function Places() {
                 {p.notes && <div className="item-notes">{p.notes}</div>}
                 <div className="item-foot" onClick={(e) => e.stopPropagation()}>
                   <MapLinks p={p} />
+                  {safeHttpUrl(p.source_url) && (
+                    <a className="post-link" href={safeHttpUrl(p.source_url)!} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Post</a>
+                  )}
                   {!offline && <button className="link-btn" onClick={() => addToItinerary(p)}>+ Itinerary</button>}
                 </div>
               </div>
@@ -103,13 +137,34 @@ export function Places() {
         </div>
       )}
 
-      {form && <PlaceForm initial={form} onClose={() => setForm(null)} onSaved={() => setForm(null)}
+      {form && <PlaceForm initial={form} inboxId={fromInbox} onClose={() => { setForm(null); setFromInbox(null); }} onSaved={() => { setForm(null); setFromInbox(null); }}
         onRemove={form.id ? () => act(() => backend.remove('places', form.id!), 'Place removed').then((ok) => ok && setForm(null)) : undefined} />}
     </div>
   );
 }
 
-function PlaceForm({ initial, onClose, onSaved, onRemove }: { initial: Partial<Place>; onClose: () => void; onSaved: () => void; onRemove?: () => void }) {
+function InboxRow({ x, offline, onAdd, onDismiss, onRestore }: { x: InboxItem; offline: boolean; onAdd?: () => void; onDismiss?: () => void; onRestore?: () => void }) {
+  const url = safeHttpUrl(x.url);
+  const short = url ? url.replace(/^https?:\/\/(www\.)?/, '') : x.url;
+  return (
+    <div className={`inbox-row ${x.status}`}>
+      <span className="inbox-icon"><Icon name={x.source === 'other' ? 'link' : x.source} size={16} /></span>
+      <div className="inbox-main">
+        <p className="inbox-title">{x.note || x.caption || short}</p>
+        {x.note && x.caption && <p className="inbox-caption">{x.caption}</p>}
+        <p className="inbox-meta">{x.source === 'instagram' ? 'Instagram' : x.source === 'tiktok' ? 'TikTok' : short.split('/')[0]} · {fmtDay(x.created_at.slice(0, 10))}{x.status === 'dismissed' ? ' · dismissed' : ''}</p>
+        <div className="inbox-actions">
+          {url && <a href={url} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Open</a>}
+          {!offline && onAdd && <button className="btn btn-sm" onClick={onAdd}>Add as place</button>}
+          {!offline && onDismiss && <button className="link-btn" onClick={onDismiss}>Dismiss</button>}
+          {!offline && onRestore && <button className="link-btn" onClick={onRestore}>Restore</button>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: Partial<Place>; inboxId?: string | null; onClose: () => void; onSaved: () => void; onRemove?: () => void }) {
   const { data, act, backend } = useTrip();
   const [f, setF] = useState({
     name: initial.name ?? '', category: initial.category ?? ('other' as PlaceCategory), address: initial.address ?? '',
@@ -121,8 +176,14 @@ function PlaceForm({ initial, onClose, onSaved, onRemove }: { initial: Partial<P
       ...(initial.id ? { id: initial.id } : {}), trip_id: data.trip.id, name: f.name.trim(), category: f.category,
       address: f.address.trim() || null, maps_url: f.maps_url.trim() || null, notes: f.notes.trim() || null,
       lat: parsed ? parsed.lat : initial.lat ?? null, lng: parsed ? parsed.lng : initial.lng ?? null,
+      // Only sent when used, so saving still works before migration 007 has run.
+      ...(initial.source_url ? { source_url: safeHttpUrl(initial.source_url) } : {}),
     };
-    if (await act(() => backend.save('places', row), initial.id ? 'Saved' : 'Place saved')) onSaved();
+    const ok = await act(async () => {
+      const placeId = await backend.save('places', row);
+      if (inboxId) await backend.updateInbox(inboxId, { status: 'added', place_id: placeId });
+    }, initial.id ? 'Saved' : inboxId ? 'Place saved from the inbox' : 'Place saved');
+    if (ok) onSaved();
   };
   return (
     <Sheet title={initial.id ? 'Edit place' : 'Save place'} onClose={onClose}
@@ -132,6 +193,9 @@ function PlaceForm({ initial, onClose, onSaved, onRemove }: { initial: Partial<P
         <button className="btn" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" disabled={!f.name.trim()} onClick={save}>Save</button>
       </>}>
+      {initial.source_url && !initial.id && (
+        <p className="field-hint from-post">From a saved post · <a href={safeHttpUrl(initial.source_url) ?? undefined} target="_blank" rel="noreferrer">open it</a> to check the details, then paste the Google Maps link below</p>
+      )}
       <Field label="Name"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus={!f.name} placeholder="e.g. La Brisa" /></Field>
       <Field label="Category" group>
         <div className="kind-picker">

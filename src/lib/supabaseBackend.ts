@@ -68,13 +68,14 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       return check(await sb.rpc('join_trip', { p_code: code, p_display_name: displayName })) as string;
     },
     async loadTrip(id) {
-      const [trip, members, travellers, places, items, expenses] = await Promise.all([
+      const [trip, members, travellers, places, items, expenses, inbox] = await Promise.all([
         sb.from('trips').select('*').eq('id', id).single(),
         sb.from('trip_members').select('*').eq('trip_id', id),
         sb.from('travellers').select('*').eq('trip_id', id).order('created_at'),
         sb.from('places').select('*').eq('trip_id', id).order('created_at', { ascending: false }),
         sb.from('items').select('*').eq('trip_id', id),
         sb.from('expenses').select('*').eq('trip_id', id).order('spent_on', { ascending: false }).order('created_at', { ascending: false }),
+        sb.from('inbox_items').select('id,trip_id,url,source,note,caption,status,place_id,created_at').eq('trip_id', id).order('created_at', { ascending: false }),
       ]);
       return {
         trip: check(trip),
@@ -83,6 +84,8 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         places: check(places),
         items: check(items),
         expenses: (check(expenses) as TripData['expenses']).map((e) => ({ ...e, amount: Number(e.amount) })),
+        // Missing table (migration 007 not run yet) or any other problem: hide the inbox rather than fail the trip.
+        inbox: inbox.error ? undefined : (inbox.data as TripData['inbox']),
       } as TripData;
     },
     subscribe(tripId, onChange) {
@@ -100,7 +103,12 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       }
       ch.on('postgres_changes', { event: '*', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, debounced);
       ch.subscribe();
+      // The inbox gets its own channel so a missing table can never break the main one.
+      const inboxCh = sb.channel(`inbox-${tripId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'inbox_items', filter: `trip_id=eq.${tripId}` }, debounced)
+        .subscribe();
       return () => {
+        void sb.removeChannel(inboxCh);
         clearTimeout(timer);
         void sb.removeChannel(ch);
       };
@@ -129,6 +137,9 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async removeMember(m: Member) {
       check(await sb.from('trip_members').delete().eq('trip_id', m.trip_id).eq('user_id', m.user_id));
+    },
+    async updateInbox(id, patch) {
+      check(await sb.from('inbox_items').update(patch).eq('id', id));
     },
     async linkTraveller(travellerId, userId) {
       check(await sb.rpc('link_traveller', { p_traveller: travellerId, p_user: userId }));

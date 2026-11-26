@@ -38,6 +38,8 @@ export interface Backend {
   removeMember(m: Member): Promise<void>;
   /** Owner only: attach a traveller to a member's account (merging any duplicate entry for that account). */
   linkTraveller(travellerId: string, userId: string): Promise<void>;
+  /** Mark an inbox item added (linked to a place) or dismissed / restored. */
+  updateInbox(id: string, patch: { status: 'new' | 'added' | 'dismissed'; place_id?: string | null }): Promise<void>;
 
   getShared(token: string): Promise<SharedTrip | null>;
 }

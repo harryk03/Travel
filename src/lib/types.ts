@@ -43,6 +43,8 @@ export interface Place {
   lat: number | null;
   lng: number | null;
   notes: string | null;
+  /** The Instagram/TikTok post this place came from. Members only. */
+  source_url?: string | null;
 }
 
 export interface Item {
@@ -93,6 +95,18 @@ export interface Expense {
   is_private?: boolean;
 }
 
+export interface InboxItem {
+  id: string;
+  trip_id: string;
+  url: string;
+  source: 'instagram' | 'tiktok' | 'other';
+  note: string | null;
+  caption: string | null;
+  status: 'new' | 'added' | 'dismissed';
+  place_id: string | null;
+  created_at: string;
+}
+
 export interface TripData {
   trip: Trip;
   members: Member[];
@@ -100,6 +114,8 @@ export interface TripData {
   places: Place[];
   items: Item[];
   expenses: Expense[];
+  /** Shared-post inbox. Undefined when the database doesn't have it yet (migration 007). */
+  inbox?: InboxItem[];
 }
 
 /** What external friends see. Mirrors get_shared_trip() in supabase/schema.sql. */
