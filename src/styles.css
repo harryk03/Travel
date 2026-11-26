@@ -167,7 +167,7 @@ input[type="date"], input[type="time"] { min-width: 0; max-width: 100%; -webkit-
 .stub-k { font: 400 12px/16px var(--mono); color: var(--paper-muted); }
 .stub-v { margin-top: 4px; font-size: 16px; line-height: 20px; font-weight: 500; }
 .stub-sub { margin-top: 2px; font-size: 13px; line-height: 20px; color: var(--paper-2nd); }
-.stub-links { margin-top: 12px; }
+.stub-links { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 4px 16px; }
 .pass .map-links a { color: #0b6359; }
 @media (max-width: 599px) { .stop .v { font-size: 12px; } }
 @media (min-width: 720px) {

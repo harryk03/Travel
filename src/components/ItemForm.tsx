@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { newPosition } from '../lib/itinerary';
-import { parseMapsUrl } from '../lib/maps';
+import { parseMapsUrl, safeHttpUrl } from '../lib/maps';
 import { KIND_META, type Item, type ItemKind } from '../lib/types';
 import { Field, Icon, Segmented, Sheet, useTrip } from '../ui';
 
@@ -25,6 +25,8 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
     notes: s(initial.notes),
     private_notes: s(initial.private_notes),
     booking_ref: s(initial.booking_ref),
+    listing_url: s(initial.listing_url),
+    booking_url: s(initial.booking_url),
     visible_to: initial.visible_to ?? null as string[] | null,
   });
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -49,6 +51,9 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
       notes: n(f.notes), private_notes: n(f.private_notes), booking_ref: n(f.booking_ref), position,
       // Only send when used, so saving still works on a database without the column yet.
       ...(f.visible_to || initial.visible_to ? { visible_to: f.visible_to && f.visible_to.length ? f.visible_to : null } : {}),
+      // Links are only sent when used, so saving still works before the database has the columns.
+      ...(f.listing_url || initial.listing_url ? { listing_url: safeHttpUrl(f.listing_url) } : {}),
+      ...(f.booking_url || initial.booking_url ? { booking_url: safeHttpUrl(f.booking_url) } : {}),
     };
     if (await act(() => backend.save('items', row), isNew ? 'Added to itinerary' : 'Saved')) onClose();
   };
@@ -113,6 +118,8 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
       <fieldset className="private-box">
         <legend>Travelling group only</legend>
         <Field label="Booking reference"><input value={f.booking_ref} onChange={set('booking_ref')} /></Field>
+        <Field label="Listing link" hint="The public Airbnb or Booking.com page"><input value={f.listing_url} onChange={set('listing_url')} inputMode="url" placeholder="https://" /></Field>
+        <Field label="Reservation link" hint="Opens for whoever made the booking"><input value={f.booking_url} onChange={set('booking_url')} inputMode="url" placeholder="https://" /></Field>
         <Field label="Private notes" hint="Never shown on the share link."><textarea rows={2} value={f.private_notes} onChange={set('private_notes')} /></Field>
       </fieldset>
     </Sheet>

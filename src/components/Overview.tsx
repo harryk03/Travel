@@ -2,7 +2,7 @@ import { addDays, fmtDay, todayISO, tripPhase } from '../lib/dates';
 import { currentAndUpcomingStays, lastNight, sortItems } from '../lib/itinerary';
 import type { Item, SharedItem } from '../lib/types';
 import { Empty, StatusPill } from '../ui';
-import { ItemCard, MapLinks } from './ItemCard';
+import { BookingLinks, ItemCard, MapLinks } from './ItemCard';
 
 const short = (s: string) => fmtDay(s, { day: 'numeric', month: 'short' });
 
@@ -62,7 +62,7 @@ export function OverviewBody<T extends Item | SharedItem>({ items, start, end, n
             <>
               <p className="stub-v">{tonight.title}</p>
               <p className="stub-sub">{tonight.location_name ? `${tonight.location_name} · ` : ''}until {fmtDay(addDays(lastNight(tonight), 1))}</p>
-              <div className="stub-links"><MapLinks p={tonight} /></div>
+              <div className="stub-links"><MapLinks p={tonight} /><BookingLinks item={tonight} /></div>
             </>
           ) : <p className="stub-sub">No accommodation for tonight yet</p>}
         </div>

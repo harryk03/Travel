@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { fmtDay, fmtTime } from '../lib/dates';
-import { directionsUrl, hasLocation, openInMapsUrl } from '../lib/maps';
+import { directionsUrl, hasLocation, openInMapsUrl, safeHttpUrl } from '../lib/maps';
 import { type Item, type SharedItem } from '../lib/types';
 import { Ctx, Icon, StatusPill } from '../ui';
 
@@ -29,6 +29,21 @@ export function MapLinks({ p }: { p: Parameters<typeof openInMapsUrl>[0] }) {
     <span className="map-links" onClick={(e) => e.stopPropagation()}>
       {open && <a href={open} target="_blank" rel="noreferrer"><Icon name="map" size={16} />Map</a>}
       {dir && <a href={dir} target="_blank" rel="noreferrer"><Icon name="directions" size={16} />Directions</a>}
+    </span>
+  );
+}
+
+/** Listing and reservation links (members only; never on the share page). */
+export function BookingLinks({ item }: { item: Item | SharedItem }) {
+  const full = item as Item;
+  const listing = safeHttpUrl(full.listing_url);
+  const booking = safeHttpUrl(full.booking_url);
+  if (!listing && !booking) return null;
+  const site = (u: string) => (/airbnb\./i.test(u) ? 'Airbnb' : /booking\.com/i.test(u) ? 'Booking.com' : 'Listing');
+  return (
+    <span className="map-links" onClick={(e) => e.stopPropagation()}>
+      {listing && <a href={listing} target="_blank" rel="noreferrer"><Icon name="external" size={16} />{site(listing)}</a>}
+      {booking && <a href={booking} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Reservation</a>}
     </span>
   );
 }
@@ -70,6 +85,7 @@ export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions, compa
         {(!compact || actions) && (
           <div className="plan-links">
             {!compact && <MapLinks p={item} />}
+            {!compact && <BookingLinks item={item} />}
             {actions}
           </div>
         )}

@@ -67,6 +67,9 @@ export interface Item {
   position: number;
   /** Traveller ids who can see this plan; null = everyone in the trip. Enforced by the database. */
   visible_to?: string[] | null;
+  /** Public listing page (Airbnb, Booking.com…) and the reservation page. Members only. */
+  listing_url?: string | null;
+  booking_url?: string | null;
 }
 
 export interface Share {
