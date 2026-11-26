@@ -121,24 +121,28 @@ export function SettingsSheet({ onClose, onSwitchTrip, onSignOut }: { onClose: (
           {isOwner && cloud && ' If a name didn’t link, pick their account next to it. Any duplicate entry is merged in.'}</p>
         <ul className="member-list">
           {travellers.map((tr) => (
-            <li key={tr.id}>
-              <input className="inline-input" defaultValue={tr.name} disabled={offline}
+            <li key={tr.id} className="traveller-row">
+              <input className="inline-input" defaultValue={tr.name} disabled={offline} aria-label="Name"
                 onBlur={(e) => e.target.value.trim() && e.target.value !== tr.name && act(() => backend.save('travellers', { ...tr, name: e.target.value.trim() }), 'Renamed')} />
               <TravellerDates tr={tr} />
-              {tr.user_id && <span className="role">✓ account</span>}
-              {!tr.user_id && isOwner && cloud && !offline && members.length > 0 && (
-                <select className="link-select" value="" aria-label={`Link ${tr.name} to an account`}
-                  onChange={(e) => {
-                    const m = members.find((x) => x.user_id === e.target.value);
-                    if (m && confirm(`Link “${tr.name}” to ${m.display_name}’s account? Their plans, visibility and expenses will follow this name.`)) {
-                      void act(() => backend.linkTraveller(tr.id, m.user_id), 'Linked');
-                    }
-                  }}>
-                  <option value="">Link account…</option>
-                  {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
-                </select>
+              {(tr.user_id || !offline) && (
+                <div className="traveller-actions">
+                  {tr.user_id && <span className="role">✓ Linked to an account</span>}
+                  {!tr.user_id && isOwner && cloud && !offline && members.length > 0 && (
+                    <select className="link-select" value="" aria-label={`Link ${tr.name} to an account`}
+                      onChange={(e) => {
+                        const m = members.find((x) => x.user_id === e.target.value);
+                        if (m && confirm(`Link “${tr.name}” to ${m.display_name}’s account? Their plans, visibility and expenses will follow this name.`)) {
+                          void act(() => backend.linkTraveller(tr.id, m.user_id), 'Linked');
+                        }
+                      }}>
+                      <option value="">Link account…</option>
+                      {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
+                    </select>
+                  )}
+                  {!tr.user_id && !offline && <button className="btn btn-sm btn-danger-ghost" onClick={() => removeTraveller(tr.id, tr.name)}>Remove</button>}
+                </div>
               )}
-              {!tr.user_id && !offline && <button className="btn btn-sm btn-danger-ghost" onClick={() => removeTraveller(tr.id, tr.name)}>Remove</button>}
             </li>
           ))}
         </ul>

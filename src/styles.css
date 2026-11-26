@@ -337,7 +337,13 @@ button.status:hover { color: var(--text); }
 .role { font: 400 12px/16px var(--mono); color: var(--muted); }
 .inline-input { flex: 1; min-height: 36px; }
 .link-select { width: auto; min-height: 32px; padding: 4px 8px; font-size: 13px; }
-.date-chip { min-height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--text2); font: 400 12px/16px var(--mono); cursor: pointer; white-space: nowrap; }
+.member-list li.traveller-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.member-list li.traveller-row:last-child { border-bottom: 0; }
+.traveller-row .inline-input { min-width: 0; }
+.traveller-actions { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 0; }
+.traveller-actions:empty { display: none; }
+.traveller-row .dates-edit { grid-column: 1 / -1; margin: 0; }
+.date-chip { min-height: 36px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line); background: none; color: var(--text2); font: 400 12px/16px var(--mono); cursor: pointer; white-space: nowrap; }
 .date-chip:hover { background: var(--raised); color: var(--text); }
 .dates-edit { flex-basis: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 12px; margin: 4px 0 8px; border-radius: 10px; background: var(--raised); }
 .dates-edit .field { margin-bottom: 12px; }
