@@ -5,18 +5,28 @@ import type { Currency, Expense, Share } from '../lib/types';
 import { Empty, Field, Icon, Segmented, Sheet, useTrip } from '../ui';
 
 export function Expenses() {
-  const { data, offline } = useTrip();
+  const { data, offline, me } = useTrip();
   const { expenses, travellers } = data;
+  const myId = travellers.find((t) => t.user_id === me.id)?.id;
   const [currency, setCurrency] = useState<Currency>(() => (expenses[0]?.currency ?? 'AUD'));
   const [form, setForm] = useState<Partial<Expense> | null>(null);
   const name = (id: string) => travellers.find((t) => t.id === id)?.name ?? 'Removed traveller';
 
-  const net = useMemo(() => balances(expenses, travellers), [expenses, travellers]);
-  const plan = useMemo(() => {
-    const order = (id: string) => travellers.findIndex((t) => t.id === id);
-    return settleUp(expenses, currency).sort((a, b) => order(a.from) - order(b.from) || order(a.to) - order(b.to));
-  }, [expenses, travellers, currency]);
-  const spent = expenses.filter((e) => e.kind === 'expense' && e.currency === currency);
+  // Shared (group) money and private money are settled separately, so everyone sees the same group figures
+  // and private debts only ever appear to the people involved.
+  const shared = useMemo(() => expenses.filter((e) => !e.is_private), [expenses]);
+  const priv = useMemo(() => expenses.filter((e) => e.is_private), [expenses]);
+  const net = useMemo(() => balances(shared, travellers), [shared, travellers]);
+  const order = (id: string) => travellers.findIndex((t) => t.id === id);
+  const sortPlan = (p: Settlement[]) => p.sort((a, b) => order(a.from) - order(b.from) || order(a.to) - order(b.to));
+  const plan = useMemo(() => sortPlan(settleUp(shared, currency)), [shared, travellers, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+  const privatePlan = useMemo(() => sortPlan(settleUp(priv, currency)), [priv, travellers, currency]); // eslint-disable-line react-hooks/exhaustive-deps
+  const spent = shared.filter((e) => e.kind === 'expense' && e.currency === currency);
+  const mine = expenses.filter((e) => e.kind === 'expense' && e.currency === currency);
+  const myShareOf = (e: Expense) => e.shares.find((s) => s.traveller_id === myId)?.amount ?? 0;
+  const myShare = mine.reduce((a, e) => a + myShareOf(e), 0);
+  const myPaid = mine.filter((e) => e.paid_by === myId).reduce((a, e) => a + e.amount, 0);
+  const myPrivate = mine.filter((e) => e.is_private).reduce((a, e) => a + myShareOf(e), 0);
   const total = spent.reduce((s, e) => s + e.amount, 0);
   const paid = new Map<string, number>();
   spent.forEach((e) => paid.set(e.paid_by, (paid.get(e.paid_by) ?? 0) + e.amount));
@@ -24,10 +34,11 @@ export function Expenses() {
   const shades = ['var(--accent)', 'var(--text2)', 'var(--muted)', 'var(--line-strong)'];
   const shown = expenses;
 
-  const repay = (s: Settlement) => setForm({
+  const repay = (s: Settlement, isPrivate = false) => setForm({
     kind: 'repayment', amount: s.amount, currency: s.currency, paid_by: s.from, split_type: 'custom',
-    shares: [{ traveller_id: s.to, amount: s.amount }], description: 'Repayment',
+    shares: [{ traveller_id: s.to, amount: s.amount }], description: 'Repayment', is_private: isPrivate,
   });
+  const people = (e: Expense) => [...new Set([e.paid_by, ...e.shares.map((s) => s.traveller_id)])].map(name).join(', ');
 
   return (
     <div className="page">
@@ -40,8 +51,17 @@ export function Expenses() {
 
       <div className="ex-grid">
         <div>
+          {myId && (myShare > 0 || myPaid > 0) && (
+            <section className="card spend mine">
+              <p className="spend-k">Your spending</p>
+              <p className="spend-v">{formatMoney(myShare, currency)}</p>
+              <p className="spend-note">Your share of everything you’re in{myPrivate > 0 ? `, including ${formatMoney(myPrivate, currency)} private` : ''}</p>
+              <div className="mine-row"><span>You paid upfront</span><span className="amt">{formatMoney(myPaid, currency)}</span></div>
+            </section>
+          )}
           <section className="card spend">
             <p className="spend-k">Group spend</p>
+            <p className="spend-note">Shared costs only. Private expenses aren’t included</p>
             <p className="spend-v">{formatMoney(total, currency)}</p>
             {payers.length > 0 && (
               <>
@@ -81,6 +101,7 @@ export function Expenses() {
                     <span className="exp-sub">
                       {e.kind === 'repayment' ? 'Repayment' : `Paid by ${name(e.paid_by)} · ${e.split_type === 'equal' ? `split ${e.shares.length} ways` : 'custom split'}`} · {fmtDay(e.spent_on)}
                     </span>
+                    {e.is_private && <span className="exp-private"><Icon name="lock" size={14} />Private · {people(e)}</span>}
                   </div>
                 ))}
               </div>
@@ -90,17 +111,25 @@ export function Expenses() {
 
         <section className="section ledger-col">
           <div className="section-head"><h2 className="section-title">Who pays who</h2><span className="section-meta">Rounded up</span></div>
-          {plan.length === 0 ? <p className="muted">Everyone’s square in {currency}</p> : (
+          {plan.length === 0 && privatePlan.length === 0 ? <p className="muted">Everyone’s square in {currency}</p> : (
             <div className="ledger">
               {plan.map((s, i) => (
-                <div key={i} className="owe">
+                <div key={'g' + i} className="owe">
                   <span className="who">{name(s.from)}<span className="arrow">→</span>{name(s.to)}</span>
                   <span className="amt">{formatMoney(s.amount, s.currency, true)}</span>
                   {!offline && <button className="btn btn-sm" onClick={() => repay(s)}>Record</button>}
                 </div>
               ))}
+              {privatePlan.map((s, i) => (
+                <div key={'p' + i} className="owe private">
+                  <span className="who"><Icon name="lock" size={14} />{name(s.from)}<span className="arrow">→</span>{name(s.to)}</span>
+                  <span className="amt">{formatMoney(s.amount, s.currency, true)}</span>
+                  {!offline && <button className="btn btn-sm" onClick={() => repay(s, true)}>Record</button>}
+                </div>
+              ))}
             </div>
           )}
+          {privatePlan.length > 0 && <p className="ledger-note"><Icon name="lock" size={14} />Private lines are only visible to the two people in them</p>}
         </section>
       </div>
 
@@ -125,6 +154,7 @@ function ExpenseForm({ initial, onClose }: { initial: Partial<Expense>; onClose:
     Object.fromEntries((initial.shares ?? []).map((s) => [s.traveller_id, String(s.amount)])),
   );
   const [recipient, setRecipient] = useState(initial.shares?.[0]?.traveller_id ?? travellers.find((t) => t.id !== paidBy)?.id ?? '');
+  const [isPrivate, setIsPrivate] = useState(initial.is_private ?? false);
 
   const amt = parseFloat(amount.replace(/,/g, ''));
   const valid = Number.isFinite(amt) && amt > 0;
@@ -142,6 +172,8 @@ function ExpenseForm({ initial, onClose }: { initial: Partial<Expense>; onClose:
     if (valid && Math.abs(diff) >= 1 / unit(currency)) problem = diff > 0 ? `${formatMoney(diff, currency)} left to assign` : `${formatMoney(-diff, currency)} over the total`;
   }
   const canSave = valid && !problem && paidBy && shares.length > 0;
+  const involvedNames = [...new Set([paidBy, ...shares.map((s) => s.traveller_id)])]
+    .map((id) => travellers.find((t) => t.id === id)?.name).filter(Boolean).join(', ');
 
   const save = async () => {
     if (!canSave) return;
@@ -149,6 +181,8 @@ function ExpenseForm({ initial, onClose }: { initial: Partial<Expense>; onClose:
       ...(initial.id ? { id: initial.id } : {}), trip_id: data.trip.id, kind: isRepay ? 'repayment' : 'expense',
       description: isRepay ? 'Repayment' : desc.trim(), amount: round(amt, currency), currency, paid_by: paidBy,
       split_type: isRepay ? 'custom' : split, shares, spent_on: date,
+      // Only sent when used, so saving still works before the database has the column.
+      ...(isPrivate || initial.is_private ? { is_private: isPrivate } : {}),
     };
     if (await act(() => backend.save('expenses', row), initial.id ? 'Saved' : isRepay ? 'Repayment recorded' : 'Expense added')) onClose();
   };
@@ -212,6 +246,12 @@ function ExpenseForm({ initial, onClose }: { initial: Partial<Expense>; onClose:
           </ul>
         </>
       )}
+      <Field label="Who can see this" group hint={isPrivate
+        ? `Only ${involvedNames || 'the people involved'} can see it. It isn’t added to the group spend`
+        : 'Everyone in the trip. Counts toward the group spend'}>
+        <Segmented value={isPrivate ? 'private' : 'everyone'} onChange={(v) => setIsPrivate(v === 'private')}
+          options={[{ value: 'everyone', label: 'Everyone' }, { value: 'private', label: 'Only the people involved' }]} />
+      </Field>
       {problem && <p className="warn">{problem}</p>}
     </Sheet>
   );

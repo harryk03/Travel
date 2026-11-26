@@ -83,6 +83,8 @@ export interface Expense {
   shares: Share[];
   spent_on: string;
   created_at?: string;
+  /** Only the payer and the people it's split between can see it; left out of group totals. Enforced by the database. */
+  is_private?: boolean;
 }
 
 export interface TripData {
