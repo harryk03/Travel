@@ -32,6 +32,7 @@ Enforced in Postgres (row level security + the `get_shared_trip` function), not 
 
 Settling up always means **paying back whoever paid**: each person owes each payer their share of that payer's
 expenses, and amounts only net out between the same two people. Never switch to a "fewest transfers" optimiser.
+Amounts to pay are rounded **up** to whole dollars (Rp 1,000 for IDR); anything under one step counts as settled.
 Logic: `settleUp()` in `src/lib/money.ts`, covered by the "who pays who" test.
 
 ## Develop

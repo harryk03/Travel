@@ -11,9 +11,22 @@ export function round(amount: number, c: Currency): number {
   return Math.round(amount * unit(c)) / unit(c);
 }
 
-export function formatMoney(amount: number, c: Currency): string {
+export function formatMoney(amount: number, c: Currency, whole = false): string {
   if (c === 'IDR') return 'Rp ' + Math.round(amount).toLocaleString('id-ID');
-  return 'A$' + amount.toLocaleString('en-AU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const d = whole ? 0 : 2;
+  return 'A$' + amount.toLocaleString('en-AU', { minimumFractionDigits: d, maximumFractionDigits: d });
+}
+
+/** Settle-up rounding step: whole dollars for AUD, Rp 1,000 for IDR. Anything smaller counts as settled. */
+export function settleStep(c: Currency): number {
+  return c === 'AUD' ? 1 : 1000;
+}
+
+/** Rounds an amount owed up to the next step, or 0 if it is less than one step. */
+export function roundUpOwed(amount: number, c: Currency): number {
+  const step = settleStep(c);
+  const a = Math.abs(amount);
+  return a < step ? 0 : Math.ceil(round(a, c) / step) * step;
 }
 
 /** Split evenly in whole units; leftover units go to the first people so shares always sum to the total. */
@@ -75,8 +88,9 @@ export function settleUp(expenses: Expense[], currency: Currency): Settlement[] 
     if (seen.has(pair)) continue;
     seen.add(pair);
     const net = round((owed.get(`${a}|${b}`) ?? 0) - (owed.get(`${b}|${a}`) ?? 0), currency);
-    if (net > eps) out.push({ from: a, to: b, amount: net, currency });
-    else if (net < -eps) out.push({ from: b, to: a, amount: -net, currency });
+    const amount = roundUpOwed(net, currency); // whole dollars / Rp 1,000, rounded up; tiny leftovers count as settled
+    if (amount > 0 && net > eps) out.push({ from: a, to: b, amount, currency });
+    else if (amount > 0 && net < -eps) out.push({ from: b, to: a, amount, currency });
   }
   return out;
 }

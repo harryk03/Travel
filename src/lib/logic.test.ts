@@ -85,12 +85,20 @@ describe('who pays who', () => {
     const plan = settleUp(ex, 'AUD');
     const get = (f: string, t: string) => plan.find((p) => p.from === f && p.to === t)?.amount;
     for (const m of ['adem', 'abel', 'jas']) {
-      expect(get(m, 'harry')).toBe(575.89);
-      expect(get(m, 'rob')).toBe(690.6);
+      expect(get(m, 'harry')).toBe(576);
+      expect(get(m, 'rob')).toBe(691);
     }
-    expect(get('harry', 'rob')).toBe(114.72);
+    expect(get('harry', 'rob')).toBe(115);
     expect(get('rob', 'harry')).toBeUndefined();
     expect(plan).toHaveLength(7);
+    // Abel pays the rounded-up A$576: the 11c overpayment must not create a new line back to Abel.
+    const paid: Expense = { ...base, id: '4', kind: 'repayment', description: 'Repayment', amount: 576, paid_by: 'abel', split_type: 'custom', shares: [{ traveller_id: 'harry', amount: 576 }] };
+    const after = settleUp([...ex, paid], 'AUD');
+    expect(after.some((p) => (p.from === 'abel' && p.to === 'harry') || (p.from === 'harry' && p.to === 'abel'))).toBe(false);
+    expect(after).toHaveLength(6);
+    // A partial payment leaves the rest, rounded up.
+    const part: Expense = { ...paid, id: '5', amount: 300, shares: [{ traveller_id: 'harry', amount: 300 }] };
+    expect(settleUp([...ex, part], 'AUD').find((p) => p.from === 'abel' && p.to === 'harry')?.amount).toBe(276);
   });
 });
 

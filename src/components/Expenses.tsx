@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { fmtDay, todayISO } from '../lib/dates';
-import { balances, CURRENCIES, equalShares, formatMoney, round, settleUp, sharesTotal, unit, type Settlement } from '../lib/money';
+import { balances, CURRENCIES, equalShares, formatMoney, round, roundUpOwed, settleUp, sharesTotal, unit, type Settlement } from '../lib/money';
 import type { Currency, Expense, Share } from '../lib/types';
 import { Empty, Field, Segmented, Sheet, useTrip } from '../ui';
 
@@ -42,7 +42,7 @@ export function Expenses() {
               <li key={t.id}>
                 <span>{t.name}</span>
                 <span className={v > 0 ? 'pos' : v < 0 ? 'neg' : 'muted'}>
-                  {Math.abs(v) < 1 / unit(currency) ? 'settled' : v > 0 ? `gets back ${formatMoney(v, currency)}` : `owes ${formatMoney(-v, currency)}`}
+                  {roundUpOwed(v, currency) === 0 ? 'settled' : v > 0 ? `gets back ${formatMoney(roundUpOwed(v, currency), currency, true)}` : `owes ${formatMoney(roundUpOwed(v, currency), currency, true)}`}
                 </span>
               </li>
             );
@@ -58,7 +58,7 @@ export function Expenses() {
             {plan.map((s, i) => (
               <div key={i} className="card settle-row">
                 <span><strong>{name(s.from)}</strong> {name(s.from) === 'You' ? 'pay' : 'pays'} <strong>{name(s.to)}</strong></span>
-                <span className="settle-amt">{formatMoney(s.amount, s.currency)}</span>
+                <span className="settle-amt">{formatMoney(s.amount, s.currency, true)}</span>
                 {!offline && <button className="btn btn-sm" onClick={() => repay(s)}>Record</button>}
               </div>
             ))}
