@@ -28,6 +28,12 @@ Without Supabase settings it runs in **demo mode** (data saved in the browser on
 
 Enforced in Postgres (row level security + the `get_shared_trip` function), not just hidden in the UI.
 
+## Expenses rule (keep this)
+
+Settling up always means **paying back whoever paid**: each person owes each payer their share of that payer's
+expenses, and amounts only net out between the same two people. Never switch to a "fewest transfers" optimiser.
+Logic: `settleUp()` in `src/lib/money.ts`, covered by the "who pays who" test.
+
 ## Develop
 
 ```bash
