@@ -6,7 +6,7 @@ import { OverviewBody } from './components/Overview';
 import { Places } from './components/Places';
 import { SettingsSheet, ShareSheet } from './components/Settings';
 import { ShareView } from './components/ShareView';
-import { AuthScreen, TripPicker } from './components/Welcome';
+import { AuthScreen, SetPasswordScreen, TripPicker } from './components/Welcome';
 import { backend, cache } from './lib/config';
 import { fmtRange } from './lib/dates';
 import type { Item, Trip, TripData, User } from './lib/types';
@@ -76,6 +76,7 @@ function Member({ joinCode }: { joinCode: string | null }) {
 
   if (user === undefined) return <div className="center-screen"><div className="spinner" /></div>;
   if (!user) return <AuthScreen />;
+  if (backend.recoveryMode()) return <SetPasswordScreen onDone={() => setUser({ ...user })} />;
   if (!trips) return <div className="center-screen"><div className="spinner" /></div>;
   const known = tripId && trips.some((t) => t.id === tripId);
   if (joinCode || !known) {

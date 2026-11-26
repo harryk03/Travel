@@ -60,6 +60,11 @@ export function createLocalBackend(): Backend {
     async signIn() {},
     async signUp() {},
     async signOut() {},
+    async sendPasswordReset() {},
+    async updatePassword() {},
+    recoveryMode() {
+      return false;
+    },
 
     async listTrips() {
       return load().trips;

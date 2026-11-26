@@ -16,7 +16,12 @@ function check(res: { data: any; error: { message: string } | null }): any {
 }
 
 export function createSupabaseBackend(url: string, anonKey: string): Backend {
+  // Read before the client consumes the link's URL fragment.
+  let recovery = typeof location !== 'undefined' && /type=recovery/.test(location.hash);
   const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
+  sb.auth.onAuthStateChange((event) => {
+    if (event === 'PASSWORD_RECOVERY') recovery = true;
+  });
 
   return {
     mode: 'cloud',
@@ -37,6 +42,17 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async signOut() {
       await sb.auth.signOut();
+    },
+    async sendPasswordReset(email) {
+      check(await sb.auth.resetPasswordForEmail(email, { redirectTo: `${location.origin}/` }));
+    },
+    async updatePassword(password) {
+      check(await sb.auth.updateUser({ password }));
+      recovery = false;
+      if (location.hash.includes('access_token')) history.replaceState(null, '', location.pathname);
+    },
+    recoveryMode() {
+      return recovery;
     },
 
     async listTrips() {

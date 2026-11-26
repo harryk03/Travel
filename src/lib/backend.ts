@@ -17,6 +17,11 @@ export interface Backend {
   signIn(email: string, password: string): Promise<void>;
   signUp(email: string, password: string, name: string): Promise<void>;
   signOut(): Promise<void>;
+  /** Emails a reset link that brings the user back here signed in, ready to set a new password. */
+  sendPasswordReset(email: string): Promise<void>;
+  updatePassword(password: string): Promise<void>;
+  /** True after arriving from a password-reset email link. */
+  recoveryMode(): boolean;
 
   listTrips(): Promise<Trip[]>;
   createTrip(t: NewTrip): Promise<string>;

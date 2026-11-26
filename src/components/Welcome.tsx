@@ -5,7 +5,7 @@ import type { Trip, User } from '../lib/types';
 import { Field } from '../ui';
 
 export function AuthScreen() {
-  const [mode, setMode] = useState<'in' | 'up'>('in');
+  const [mode, setMode] = useState<'in' | 'up' | 'reset'>('in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -17,7 +17,11 @@ export function AuthScreen() {
     setMsg('');
     try {
       if (mode === 'in') await backend.signIn(email.trim(), password);
-      else await backend.signUp(email.trim(), password, name.trim());
+      else if (mode === 'up') await backend.signUp(email.trim(), password, name.trim());
+      else {
+        await backend.sendPasswordReset(email.trim());
+        setMsg('If there’s an account for that email, a reset link is on its way. Check spam too, then open the link on this device.');
+      }
     } catch (err) {
       setMsg((err as Error).message);
     }
@@ -31,12 +35,48 @@ export function AuthScreen() {
         <p className="muted">Plan the trip together. Share it with everyone.</p>
         {mode === 'up' && <Field label="Your name"><input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" /></Field>}
         <Field label="Email"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></Field>
-        <Field label="Password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} /></Field>
+        {mode !== 'reset' && (
+          <Field label="Password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
+            minLength={mode === 'up' ? 8 : undefined} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} /></Field>
+        )}
         {msg && <p className="warn">{msg}</p>}
-        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? '…' : mode === 'in' ? 'Sign in' : 'Create account'}</button>
-        <button type="button" className="link-btn" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>
-          {mode === 'in' ? 'New here? Create an account' : 'Have an account? Sign in'}
+        <button className="btn btn-primary btn-block" disabled={busy}>
+          {busy ? '…' : mode === 'in' ? 'Sign in' : mode === 'up' ? 'Create account' : 'Email me a reset link'}
         </button>
+        {mode === 'in' && <button type="button" className="link-btn" onClick={() => { setMode('reset'); setMsg(''); }}>Forgot password?</button>}
+        <button type="button" className="link-btn" onClick={() => { setMode(mode === 'in' ? 'up' : 'in'); setMsg(''); }}>
+          {mode === 'in' ? 'New here? Create an account' : 'Back to sign in'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+export function SetPasswordScreen({ onDone }: { onDone: () => void }) {
+  const [pw, setPw] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setMsg('');
+    try {
+      await backend.updatePassword(pw);
+      onDone();
+    } catch (err) {
+      setMsg((err as Error).message);
+    }
+    setBusy(false);
+  };
+  return (
+    <div className="center-screen brand-bg">
+      <form className="card narrow auth" onSubmit={submit}>
+        <div className="logo">🔑</div>
+        <h1>Set a new password</h1>
+        <p className="muted">At least 8 characters.</p>
+        <Field label="New password"><input type="password" value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} autoComplete="new-password" autoFocus /></Field>
+        {msg && <p className="warn">{msg}</p>}
+        <button className="btn btn-primary btn-block" disabled={busy}>{busy ? '…' : 'Save password'}</button>
       </form>
     </div>
   );
