@@ -9,6 +9,7 @@ import { ShareView } from './components/ShareView';
 import { AuthScreen, SetPasswordScreen, TripPicker } from './components/Welcome';
 import { backend, cache } from './lib/config';
 import { fmtRange } from './lib/dates';
+import { itemsInRange, personalRange } from './lib/itinerary';
 import type { Item, Trip, TripData, User } from './lib/types';
 import { Ctx, ExampleBanner, Icon, type TripCtx } from './ui';
 
@@ -147,6 +148,7 @@ function TripScreen({ tripId, user, onSwitch, onSignOut }: { tripId: string; use
 
   if (!ctx || !data) return <div className="center-screen"><div className="spinner" /></div>;
   const { trip } = data;
+  const mine = personalRange(trip, data.travellers.find((t) => t.user_id === user.id));
 
   return (
     <Ctx.Provider value={ctx}>
@@ -177,8 +179,8 @@ function TripScreen({ tripId, user, onSwitch, onSignOut }: { tripId: string; use
             {trip.is_example && <ExampleBanner />}
             {tab === 'overview' && (
               <div className="page">
-                <OverviewBody items={data.items} start={trip.start_date} end={trip.end_date}
-                  name={trip.name} subtitle={[trip.destination, `${data.travellers.length} ${data.travellers.length === 1 ? 'traveller' : 'travellers'}`].filter(Boolean).join(' · ')}
+                <OverviewBody items={itemsInRange(data.items, mine.start, mine.end)} start={mine.start} end={mine.end}
+                  name={trip.name} subtitle={[trip.destination, mine.custom ? `your dates ${fmtRange(mine.start, mine.end)}` : `${data.travellers.length} ${data.travellers.length === 1 ? 'traveller' : 'travellers'}`].filter(Boolean).join(' · ')}
                   onOpen={offline ? undefined : (i) => setEditing(i)}
                   onToggleStatus={offline ? undefined : (i) => void ctx.act(() => backend.save('items', { ...i, status: i.status === 'confirmed' ? 'tentative' : 'confirmed' }))} />
               </div>

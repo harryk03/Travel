@@ -1,5 +1,5 @@
 import { addDays, dayRange, todayISO } from './dates';
-import type { Item, SharedItem, SharedTrip, TripData } from './types';
+import type { Item, SharedItem, SharedTrip, Traveller, Trip, TripData } from './types';
 
 type AnyItem = Item | SharedItem;
 
@@ -59,4 +59,20 @@ export function toShared(data: TripData): SharedTrip {
       lat: i.lat, lng: i.lng, notes: i.notes, position: i.position,
     })),
   };
+}
+
+/** A traveller's own dates, falling back to the trip's. */
+export function personalRange(trip: Pick<Trip, 'start_date' | 'end_date'>, t?: Pick<Traveller, 'arrive_on' | 'leave_on'> | null) {
+  const start = t?.arrive_on || trip.start_date;
+  const end = t?.leave_on || trip.end_date;
+  return { start, end, custom: !!(t && ((t.arrive_on && t.arrive_on !== trip.start_date) || (t.leave_on && t.leave_on !== trip.end_date))) };
+}
+
+/** Plans that touch the given dates. A stay counts if any of its nights falls inside. */
+export function itemsInRange<T extends Item | SharedItem>(items: T[], start: string | null, end: string | null): T[] {
+  if (!start && !end) return items;
+  return items.filter((i) => {
+    const last = i.kind === 'stay' ? lastNight(i) : i.end_day ?? i.day;
+    return (!start || last >= start) && (!end || i.day <= end);
+  });
 }

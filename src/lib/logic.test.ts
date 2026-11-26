@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { tripPhase } from './dates';
-import { currentAndUpcomingStays, newPosition, toShared } from './itinerary';
+import { currentAndUpcomingStays, itemsInRange, newPosition, personalRange, toShared } from './itinerary';
 import { directionsUrl, openInMapsUrl, parseMapsUrl, safeHttpUrl } from './maps';
 import { balances, equalShares, settleUp, sharesTotal } from './money';
 import { sampleTrip } from './sample';
@@ -128,5 +128,29 @@ describe('itinerary', () => {
     expect(tripPhase('2026-12-10', '2026-12-20', '2026-12-01')).toEqual({ phase: 'before', days: 9 });
     expect(tripPhase('2026-12-10', '2026-12-20', '2026-12-12')).toEqual({ phase: 'during', day: 3, total: 11 });
     expect(tripPhase('2026-12-10', '2026-12-20', '2026-12-21')).toEqual({ phase: 'after' });
+  });
+});
+
+describe('personal dates', () => {
+  const trip = { start_date: '2026-12-23', end_date: '2027-01-05' };
+  const base = { trip_id: 't', end_time: null, start_time: null, status: 'confirmed' as const, location_name: null, address: null, maps_url: null, lat: null, lng: null, place_id: null, notes: null, private_notes: null, booking_ref: null, position: 1, end_day: null };
+  const items = [
+    { ...base, id: 'f1', day: '2026-12-23', kind: 'flight' as const, title: 'Flight in' },
+    { ...base, id: 's1', day: '2026-12-23', end_day: '2026-12-26', kind: 'stay' as const, title: 'To book' },
+    { ...base, id: 's2', day: '2026-12-26', end_day: '2026-12-30', kind: 'stay' as const, title: 'Kenaya' },
+    { ...base, id: 'a1', day: '2026-12-31', kind: 'event' as const, title: 'NYE' },
+    { ...base, id: 'f2', day: '2027-01-05', kind: 'flight' as const, title: 'Flight home' },
+  ];
+  it('falls back to the trip dates', () => {
+    expect(personalRange(trip, { arrive_on: null, leave_on: null })).toEqual({ start: '2026-12-23', end: '2027-01-05', custom: false });
+    expect(personalRange(trip, undefined).custom).toBe(false);
+  });
+  it('arriving on the 26th drops everything that finishes before then', () => {
+    const jas = personalRange(trip, { arrive_on: '2026-12-26', leave_on: null });
+    expect(jas).toEqual({ start: '2026-12-26', end: '2027-01-05', custom: true });
+    expect(itemsInRange(items, jas.start, jas.end).map((i) => i.id)).toEqual(['s2', 'a1', 'f2']);
+  });
+  it('leaving early drops what starts after the last day', () => {
+    expect(itemsInRange(items, '2026-12-23', '2026-12-31').map((i) => i.id)).toEqual(['f1', 's1', 's2', 'a1']);
   });
 });

@@ -1,21 +1,23 @@
-import { useEffect, useRef } from 'react';
-import { fmtDay, todayISO } from '../lib/dates';
-import { sortItems, staysOn, tripDays } from '../lib/itinerary';
+import { useEffect, useRef, useState } from 'react';
+import { fmtDay, fmtRange, todayISO } from '../lib/dates';
+import { itemsInRange, personalRange, sortItems, staysOn, tripDays } from '../lib/itinerary';
 import type { Item, SharedItem } from '../lib/types';
 import { Icon, useTrip } from '../ui';
 import { ItemCard } from './ItemCard';
 
 /** Day-by-day list. Used by members (editable) and on the share page (read-only). */
-export function DayList<T extends Item | SharedItem>({ items, start, end, renderActions, onOpen, onAdd, onToggleStatus }: {
+export function DayList<T extends Item | SharedItem>({ items, start, end, clip, renderActions, onOpen, onAdd, onToggleStatus }: {
   items: T[];
   start: string | null;
   end: string | null;
+  /** Only show days inside start–end (a personal view), even if a plan began earlier. */
+  clip?: boolean;
   renderActions?: (item: T, dayItems: T[], idx: number) => React.ReactNode;
   onOpen?: (i: T) => void;
   onAdd?: (day: string) => void;
   onToggleStatus?: (i: T) => void;
 }) {
-  const days = tripDays(start, end, items);
+  const days = tripDays(start, end, items).filter((d) => !clip || ((!start || d >= start) && (!end || d <= end)));
   const today = todayISO();
   const todayRef = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -55,8 +57,14 @@ export function DayList<T extends Item | SharedItem>({ items, start, end, render
 }
 
 export function Itinerary() {
-  const { data, act, backend, editItem, offline } = useTrip();
-  const { trip, items } = data;
+  const { data, act, backend, editItem, offline, me } = useTrip();
+  const { trip } = data;
+  const mine = personalRange(trip, data.travellers.find((t) => t.user_id === me.id));
+  const [showAll, setShowAll] = useState(false);
+  const personal = mine.custom && !showAll;
+  const start = personal ? mine.start : trip.start_date;
+  const end = personal ? mine.end : trip.end_date;
+  const items = personal ? itemsInRange(data.items, start, end) : data.items;
 
   const move = (dayItems: Item[], idx: number, dir: -1 | 1) => {
     const other = dayItems[idx + dir];
@@ -70,10 +78,14 @@ export function Itinerary() {
   return (
     <div className="page">
       <div className="page-head">
-        <div><h1 className="page-title">Itinerary</h1><p className="page-sub">{items.length} {items.length === 1 ? 'plan' : 'plans'}</p></div>
+        <div>
+          <h1 className="page-title">Itinerary</h1>
+          <p className="page-sub">{personal ? `Your dates ${fmtRange(start, end)} · ` : ''}{items.length} {items.length === 1 ? 'plan' : 'plans'}</p>
+          {mine.custom && <button className="link-btn" onClick={() => setShowAll(!showAll)}>{showAll ? 'Show just your dates' : `Show the full trip (${fmtRange(trip.start_date, trip.end_date)})`}</button>}
+        </div>
         {!offline && <button className="btn btn-primary" onClick={() => editItem({ day: trip.start_date ?? todayISO() })}><Icon name="plus" size={16} />Add plan</button>}
       </div>
-      <DayList items={items} start={trip.start_date} end={trip.end_date}
+      <DayList key={personal ? 'mine' : 'all'} items={items} start={start} end={end} clip={personal}
         onOpen={offline ? undefined : (i) => editItem(i)}
         onAdd={offline ? undefined : (day) => editItem({ day })}
         onToggleStatus={offline ? undefined : (i) => void act(() => backend.save('items', { ...i, status: i.status === 'confirmed' ? 'tentative' : 'confirmed' }))}

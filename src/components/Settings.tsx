@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { newInviteCode, uuid } from '../lib/backend';
+import { fmtDay } from '../lib/dates';
+import type { Traveller } from '../lib/types';
 import { copyText, Field, inviteUrl, Sheet, shareUrl, useTrip } from '../ui';
 
 export function ShareSheet({ onClose }: { onClose: () => void }) {
@@ -114,14 +116,15 @@ export function SettingsSheet({ onClose, onSwitchTrip, onSignOut }: { onClose: (
       )}
 
       <section className="settings-sec">
-        <h3>Travellers for expenses</h3>
-        <p className="muted small">Everyone who shares costs. When a mate joins, their account links to the name with the same first name.
+        <h3>Travellers</h3>
+        <p className="muted small">Everyone who shares costs, with their own dates if they arrive late or leave early. When a mate joins, their account links to the name with the same first name.
           {isOwner && cloud && ' If a name didn’t link, pick their account next to it. Any duplicate entry is merged in.'}</p>
         <ul className="member-list">
           {travellers.map((tr) => (
             <li key={tr.id}>
               <input className="inline-input" defaultValue={tr.name} disabled={offline}
                 onBlur={(e) => e.target.value.trim() && e.target.value !== tr.name && act(() => backend.save('travellers', { ...tr, name: e.target.value.trim() }), 'Renamed')} />
+              <TravellerDates tr={tr} />
               {tr.user_id && <span className="role">✓ account</span>}
               {!tr.user_id && isOwner && cloud && !offline && members.length > 0 && (
                 <select className="link-select" value="" aria-label={`Link ${tr.name} to an account`}
@@ -165,5 +168,39 @@ export function SettingsSheet({ onClose, onSwitchTrip, onSignOut }: { onClose: (
         </div>
       </section>
     </Sheet>
+  );
+}
+
+/** Arrival and departure for one traveller; empty means the trip's own dates. */
+function TravellerDates({ tr }: { tr: Traveller }) {
+  const { data, act, backend, offline } = useTrip();
+  const { trip } = data;
+  const [open, setOpen] = useState(false);
+  const [from, setFrom] = useState(tr.arrive_on ?? '');
+  const [to, setTo] = useState(tr.leave_on ?? '');
+  const short = (d: string | null | undefined) => (d ? fmtDay(d, { day: 'numeric', month: 'short' }) : '');
+  const label = tr.arrive_on || tr.leave_on
+    ? `${short(tr.arrive_on || trip.start_date)} – ${short(tr.leave_on || trip.end_date)}`
+    : 'Whole trip';
+  const save = async (a: string, b: string) => {
+    if (await act(() => backend.save('travellers', { ...tr, arrive_on: a || null, leave_on: b || null }), 'Dates saved')) setOpen(false);
+  };
+  if (offline) return <span className="role">{label}</span>;
+  return (
+    <>
+      <button type="button" className="date-chip" onClick={() => setOpen(!open)} aria-expanded={open}>{label}</button>
+      {open && (
+        <div className="dates-edit">
+          <label className="field"><span className="field-label">Arrives</span>
+            <input type="date" value={from} min={trip.start_date ?? undefined} max={trip.end_date ?? undefined} onChange={(e) => setFrom(e.target.value)} /></label>
+          <label className="field"><span className="field-label">Leaves</span>
+            <input type="date" value={to} min={from || trip.start_date || undefined} max={trip.end_date ?? undefined} onChange={(e) => setTo(e.target.value)} /></label>
+          <div className="btn-row tight">
+            <button type="button" className="btn btn-sm btn-primary" disabled={!!from && !!to && to < from} onClick={() => save(from, to)}>Save</button>
+            {(tr.arrive_on || tr.leave_on) && <button type="button" className="btn btn-sm" onClick={() => { setFrom(''); setTo(''); void save('', ''); }}>Whole trip</button>}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

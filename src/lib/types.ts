@@ -28,6 +28,9 @@ export interface Traveller {
   trip_id: string;
   name: string;
   user_id: string | null;
+  /** Personal dates; null means the trip's own dates. */
+  arrive_on?: string | null;
+  leave_on?: string | null;
 }
 
 export interface Place {
