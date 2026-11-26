@@ -7,3 +7,4 @@ dist-demo
 
 # Private project brief for discussing ideas elsewhere; holds trip details, kept out of git
 docs/PROJECT_BRIEF.md
+*.tsbuildinfo
