@@ -203,7 +203,11 @@ input[type="date"], input[type="time"] { min-width: 0; max-width: 100%; -webkit-
 .plan-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 2px; font-size: 13px; line-height: 20px; color: var(--text2); }
 .plan-meta .sep { color: var(--muted); }
 .plan-note { margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--text2); white-space: pre-wrap; overflow-wrap: anywhere; }
-.plan-private { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin: 6px 6px 0 0; padding: 2px 8px; border-radius: 6px; background: var(--raised); font: 400 12px/16px var(--mono); color: var(--text2); overflow-wrap: anywhere; }
+/* Icon and text are two children, so links the phone adds inside the text (phone numbers) stay inline. */
+.plan-private { display: flex; align-items: flex-start; gap: 8px; width: fit-content; max-width: 100%; margin-top: 8px; padding: 6px 10px; border-radius: 8px; background: var(--raised); font-size: 13px; line-height: 20px; color: var(--text2); }
+.plan-private svg { margin-top: 3px; color: var(--muted); }
+.plan-private > span { flex: 1; min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
+.plan-private a, .plan-note a { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 2px; }
 .plan-links { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; margin-top: 6px; }
 .plan-links:empty { display: none; }
 .map-links { display: inline-flex; gap: 16px; }

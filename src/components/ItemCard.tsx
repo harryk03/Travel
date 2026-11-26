@@ -65,8 +65,8 @@ export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions, compa
           </p>
         )}
         {item.notes && <p className="plan-note">{item.notes}</p>}
-        {audience && <span className="plan-private"><Icon name="lock" size={14} />Only {audience}</span>}
-        {privateBits && <span className="plan-private"><Icon name="lock" size={14} />{privateBits}</span>}
+        {audience && <div className="plan-private"><Icon name="lock" size={14} /><span>Only {audience}</span></div>}
+        {privateBits && <div className="plan-private"><Icon name="lock" size={14} /><span>{privateBits}</span></div>}
         {(!compact || actions) && (
           <div className="plan-links">
             {!compact && <MapLinks p={item} />}
