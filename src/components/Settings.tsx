@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { uuid } from '../lib/backend';
+import { newInviteCode, uuid } from '../lib/backend';
 import { copyText, Field, inviteUrl, Sheet, shareUrl, useTrip } from '../ui';
 
 export function ShareSheet({ onClose }: { onClose: () => void }) {
@@ -105,6 +105,11 @@ export function SettingsSheet({ onClose, onSwitchTrip, onSignOut }: { onClose: (
             </div>
           </Field>
           <p className="muted small">Invite code: <code>{trip.invite_code}</code></p>
+          {isOwner && !offline && (
+            <button className="btn btn-sm" onClick={() => confirm('Make a new invite code? The old invite link will stop working. People already in the trip stay in.') &&
+              act(() => backend.updateTrip(trip.id, { invite_code: newInviteCode() }), 'New invite code created')}>New invite code</button>
+          )}
+          <p className="muted small">Tip: once everyone has joined, make a new invite code so the old link can’t be reused.</p>
         </section>
       )}
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { tripPhase } from './dates';
 import { currentAndUpcomingStays, newPosition, toShared } from './itinerary';
-import { parseMapsUrl } from './maps';
+import { directionsUrl, openInMapsUrl, parseMapsUrl, safeHttpUrl } from './maps';
 import { balances, equalShares, settleUp, sharesTotal } from './money';
 import { sampleTrip } from './sample';
 import type { Expense, Traveller, TripData } from './types';
@@ -31,6 +31,18 @@ describe('parseMapsUrl', () => {
   });
   it('returns null for text without a link', () => {
     expect(parseMapsUrl('just some text')).toBeNull();
+  });
+});
+
+describe('link safety', () => {
+  it('never produces javascript:/data: hrefs from stored links', () => {
+    for (const bad of ['javascript:alert(1)', ' JavaScript:alert(1)', 'data:text/html,<script>x</script>', 'vbscript:x', 'not a url']) {
+      expect(safeHttpUrl(bad)).toBeNull();
+      const open = openInMapsUrl({ maps_url: bad, name: 'Cafe' });
+      expect(open?.startsWith('https://www.google.com/maps/')).toBe(true);
+    }
+    expect(safeHttpUrl('https://maps.app.goo.gl/x')).toBe('https://maps.app.goo.gl/x');
+    expect(directionsUrl({ name: '"><script>', address: null })).toContain(encodeURIComponent('"><script>'));
   });
 });
 

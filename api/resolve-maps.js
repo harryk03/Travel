@@ -1,9 +1,13 @@
 // Vercel serverless function: expands a Google Maps short link (maps.app.goo.gl) to its full URL
 // so the app can read the place name and coordinates. Only follows redirects between Google hosts.
-const ALLOWED = /^(maps\.app\.goo\.gl|goo\.gl|g\.co|(www\.|maps\.)?google\.[a-z.]+|consent\.google\.[a-z.]+)$/i;
+// Exact Google hosts only (google.com, google.co.xx, google.com.xx, google.xx); never arbitrary domains.
+const GOOGLE = 'google\\.(?:com|co\\.[a-z]{2}|com\\.[a-z]{2}|[a-z]{2})';
+const ALLOWED = new RegExp(`^(?:maps\\.app\\.goo\\.gl|goo\\.gl|g\\.co|(?:www\\.|maps\\.|consent\\.)?${GOOGLE})$`, 'i');
 
 export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).end();
   let url = String(req.query.url || '');
+  if (url.length > 500) return res.status(400).json({ error: 'link too long' });
   try {
     for (let i = 0; i < 6; i++) {
       const u = new URL(url);

@@ -31,7 +31,7 @@ export function AuthScreen() {
         <p className="muted">Plan the trip together. Share it with everyone.</p>
         {mode === 'up' && <Field label="Your name"><input value={name} onChange={(e) => setName(e.target.value)} required autoComplete="name" /></Field>}
         <Field label="Email"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" /></Field>
-        <Field label="Password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} /></Field>
+        <Field label="Password"><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete={mode === 'in' ? 'current-password' : 'new-password'} /></Field>
         {msg && <p className="warn">{msg}</p>}
         <button className="btn btn-primary btn-block" disabled={busy}>{busy ? '…' : mode === 'in' ? 'Sign in' : 'Create account'}</button>
         <button type="button" className="link-btn" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>

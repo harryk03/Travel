@@ -44,8 +44,12 @@ function Member({ joinCode }: { joinCode: string | null }) {
   const [tripId, setTripId] = useState<string | null>(() => cache.lastTripId());
 
   useEffect(() => {
-    void backend.currentUser().then(setUser);
-    return backend.onAuthChange(setUser);
+    const apply = (u: User | null) => {
+      if (!u && backend.mode === 'cloud') cache.clearAll();
+      setUser(u);
+    };
+    void backend.currentUser().then(apply);
+    return backend.onAuthChange(apply);
   }, []);
 
   useEffect(() => {

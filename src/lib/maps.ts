@@ -113,8 +113,20 @@ function queryFor(p: Locatable): string {
   return [p.name ?? p.location_name ?? p.title, p.address].filter(Boolean).join(', ');
 }
 
+/** Returns the URL only if it is plain http(s); blocks javascript:, data: and similar. */
+export function safeHttpUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url.trim());
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 export function openInMapsUrl(p: Locatable): string | null {
-  if (p.maps_url) return p.maps_url;
+  const safe = safeHttpUrl(p.maps_url);
+  if (safe) return safe;
   const q = queryFor(p);
   return q ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}` : null;
 }
@@ -125,5 +137,5 @@ export function directionsUrl(p: Locatable): string | null {
 }
 
 export function hasLocation(p: Locatable): boolean {
-  return Boolean(p.maps_url || (p.lat != null && p.lng != null) || p.address || p.location_name);
+  return Boolean(safeHttpUrl(p.maps_url) || (p.lat != null && p.lng != null) || p.address || p.location_name);
 }

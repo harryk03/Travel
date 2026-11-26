@@ -37,7 +37,9 @@ npm test             # logic tests
 npm run build:demo   # single-file demo build in dist-demo/
 ```
 
-Security tests for the database: `supabase/test/` (run against a local Postgres with `auth_stub.sql` first).
+Security tests for the database: `supabase/test/` (local Postgres: `auth_stub.sql`, then `schema.sql`, then `attack_test.sql`).
+
+Existing projects: also run `supabase/migrations/002_security_hardening.sql` once in the SQL editor (fresh installs already include it).
 
 ## Structure
 
