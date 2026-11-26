@@ -56,7 +56,8 @@ button, .chip, .plan, .exp, .owe .btn { touch-action: manipulation; -webkit-tap-
 .sheet-body { touch-action: pan-y; overscroll-behavior: contain; }
 .grabber { display: flex; justify-content: center; padding: 8px 0 0; cursor: grab; }
 .grabber span { width: 36px; height: 5px; border-radius: 3px; background: var(--line-strong); }
-.app { transform-origin: 50% 0; will-change: transform; }
+/* No transform or will-change on .app while idle: either would unpin the fixed tab bar. */
+.app { transform-origin: 50% 0; }
 body.sheet-open { background: #000; }
 body.sheet-open .app { border-radius: 12px; overflow: hidden; }
 
