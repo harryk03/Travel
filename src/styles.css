@@ -305,6 +305,22 @@ button.status:hover { color: var(--text); }
 .exp-private { grid-column: 1; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: var(--muted); }
 .spend-note { margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--muted); }
 .spend.mine { margin-bottom: 16px; }
+.mine-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; color: inherit; }
+.mine-head > span { display: flex; flex-direction: column; min-width: 0; }
+.mine-head > svg { margin-top: 2px; color: var(--muted); }
+.mine-detail { margin-top: 8px; }
+.mine-sec { padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--line); }
+.mine-sec h3 { font-size: 14px; line-height: 20px; font-weight: 500; margin-bottom: 4px; }
+.mine-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 12px; min-height: 44px; padding: 4px 0; font-size: 14px; line-height: 20px; }
+.mine-line + .mine-line { border-top: 1px solid var(--line); }
+.mine-line[role="button"] { cursor: pointer; }
+.mine-line > span:first-child { display: block; min-width: 0; overflow-wrap: anywhere; }
+.mine-line > span:first-child svg { display: inline; margin-left: 6px; color: var(--muted); vertical-align: -2px; }
+.mine-line .when { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
+.mine-line .amt { font: 400 13px/20px var(--mono); text-align: right; }
+.mine-line .amt.pos, .mine-row .amt.pos { color: var(--pos); }
+.mine-detail .btn-row { margin-top: 20px; }
+.mine-detail > .muted { margin-top: 12px; }
 .mine-row { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; color: var(--text2); }
 .mine-row .amt { font: 400 13px/20px var(--mono); color: var(--text); }
 .owe.private .who { display: inline-flex; align-items: center; gap: 6px; }

@@ -25,8 +25,37 @@ export function Expenses() {
   const mine = expenses.filter((e) => e.kind === 'expense' && e.currency === currency);
   const myShareOf = (e: Expense) => e.shares.find((s) => s.traveller_id === myId)?.amount ?? 0;
   const myShare = mine.reduce((a, e) => a + myShareOf(e), 0);
-  const myPaid = mine.filter((e) => e.paid_by === myId).reduce((a, e) => a + e.amount, 0);
+  const myPaid = mine.filter((e) => e.paid_by === myId && !(e.shares.length === 1 && e.shares[0].traveller_id === myId)).reduce((a, e) => a + e.amount, 0);
   const myPrivate = mine.filter((e) => e.is_private).reduce((a, e) => a + myShareOf(e), 0);
+  const [mineOpen, setMineOpen] = useState(false);
+  const isPersonal = (e: Expense) => e.kind === 'expense' && e.paid_by === myId && e.shares.length === 1 && e.shares[0].traveller_id === myId;
+  const myItems = mine.filter((e) => myShareOf(e) > 0).sort((a, b) => (a.spent_on < b.spent_on ? 1 : a.spent_on > b.spent_on ? -1 : 0));
+  const myPersonal = myItems.filter(isPersonal).reduce((a, e) => a + e.amount, 0);
+  const owedToMe = [...plan, ...privatePlan].filter((x) => x.to === myId);
+  const iOwe = [...plan, ...privatePlan].filter((x) => x.from === myId);
+  const repayments = expenses.filter((e) => e.kind === 'repayment' && e.currency === currency);
+  const received = repayments.filter((e) => e.shares[0]?.traveller_id === myId);
+  const sent = repayments.filter((e) => e.paid_by === myId);
+  const tag = (e: Expense) => (isPersonal(e) ? 'Personal' : e.is_private ? 'Private' : 'Shared');
+  const addPersonal = () => myId && setForm({ kind: 'expense', currency, paid_by: myId, split_type: 'equal', shares: [{ traveller_id: myId, amount: 0 }], is_private: true, description: '' });
+  const download = () => {
+    const q = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = [['Date', 'What', 'Type', 'Currency', 'Your share', 'Total', 'Paid by']];
+    for (const e of [...expenses].filter((x) => x.kind === 'expense' && myShareOf(x) > 0).sort((a, b) => (a.spent_on < b.spent_on ? -1 : 1))) {
+      rows.push([e.spent_on, e.description || 'Expense', tag(e), e.currency, String(myShareOf(e)), String(e.amount), name(e.paid_by)]);
+    }
+    rows.push([]);
+    rows.push(['Date', 'Repayment', '', 'Currency', 'Amount', '', '']);
+    for (const e of expenses.filter((x) => x.kind === 'repayment' && (x.paid_by === myId || x.shares[0]?.traveller_id === myId))) {
+      rows.push([e.spent_on, `${name(e.paid_by)} paid ${name(e.shares[0]?.traveller_id ?? '')}`, e.is_private ? 'Private' : 'Shared', e.currency, String(e.amount), '', '']);
+    }
+    const blob = new Blob([rows.map((r) => r.map((c) => q(c ?? '')).join(',')).join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${(data.trip.name.replace(/[^\w -]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Trip')} - ${myId ? name(myId) : 'my'} spending.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
   const total = spent.reduce((s, e) => s + e.amount, 0);
   const paid = new Map<string, number>();
   spent.forEach((e) => paid.set(e.paid_by, (paid.get(e.paid_by) ?? 0) + e.amount));
@@ -51,12 +80,84 @@ export function Expenses() {
 
       <div className="ex-grid">
         <div>
-          {myId && (myShare > 0 || myPaid > 0) && (
-            <section className="card spend mine">
-              <p className="spend-k">Your spending</p>
-              <p className="spend-v">{formatMoney(myShare, currency)}</p>
-              <p className="spend-note">Your share of everything you’re in{myPrivate > 0 ? `, including ${formatMoney(myPrivate, currency)} private` : ''}</p>
+          {myId && (
+            <section className={`card spend mine ${mineOpen ? 'open' : ''}`}>
+              <button type="button" className="mine-head" onClick={() => setMineOpen(!mineOpen)} aria-expanded={mineOpen}>
+                <span>
+                  <span className="spend-k">Your spending</span>
+                  <span className="spend-v">{formatMoney(myShare, currency)}</span>
+                  <span className="spend-note">Your share of everything you’re in{myPrivate > 0 ? `, including ${formatMoney(myPrivate, currency)} private` : ''}</span>
+                </span>
+                <Icon name={mineOpen ? 'up' : 'down'} size={18} />
+              </button>
               <div className="mine-row"><span>You paid upfront</span><span className="amt">{formatMoney(myPaid, currency)}</span></div>
+              {owedToMe.length > 0 && !mineOpen && (
+                <div className="mine-row"><span>Still owed to you</span><span className="amt pos">{formatMoney(owedToMe.reduce((a, x) => a + x.amount, 0), currency, true)}</span></div>
+              )}
+              {mineOpen && (
+                <div className="mine-detail">
+                  <div className="mine-sec">
+                    <h3>Still owed to you</h3>
+                    {owedToMe.length === 0 ? <p className="muted small">No one owes you anything in {currency}</p> : owedToMe.map((x, i) => (
+                      <div key={i} className="mine-line">
+                        <span>{name(x.from)}{plan.includes(x) ? '' : <Icon name="lock" size={14} />}</span>
+                        <span className="amt pos">{formatMoney(x.amount, currency, true)}</span>
+                        {!offline && <button className="btn btn-sm" onClick={() => repay(x, !plan.includes(x))}>Record</button>}
+                      </div>
+                    ))}
+                  </div>
+                  {iOwe.length > 0 && (
+                    <div className="mine-sec">
+                      <h3>You still owe</h3>
+                      {iOwe.map((x, i) => (
+                        <div key={i} className="mine-line">
+                          <span>{name(x.to)}{plan.includes(x) ? '' : <Icon name="lock" size={14} />}</span>
+                          <span className="amt">{formatMoney(x.amount, currency, true)}</span>
+                          {!offline && <button className="btn btn-sm" onClick={() => repay(x, !plan.includes(x))}>Record</button>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mine-sec">
+                    <h3>Money received</h3>
+                    {received.length === 0 ? <p className="muted small">Nothing received yet</p> : received.map((e) => (
+                      <div key={e.id} className="mine-line" role="button" tabIndex={0} onClick={offline ? undefined : () => setForm(e)}>
+                        <span>{name(e.paid_by)} sent you<span className="when">{fmtDay(e.spent_on)}</span></span>
+                        <span className="amt pos">{formatMoney(e.amount, currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {sent.length > 0 && (
+                    <div className="mine-sec">
+                      <h3>Money sent</h3>
+                      {sent.map((e) => (
+                        <div key={e.id} className="mine-line" role="button" tabIndex={0} onClick={offline ? undefined : () => setForm(e)}>
+                          <span>You sent {name(e.shares[0]?.traveller_id ?? '')}<span className="when">{fmtDay(e.spent_on)}</span></span>
+                          <span className="amt">{formatMoney(e.amount, currency)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mine-sec">
+                    <h3>Your spending, item by item</h3>
+                    {myPersonal > 0 && <p className="muted small">Personal spending {formatMoney(myPersonal, currency)}</p>}
+                    {myItems.length === 0 ? <p className="muted small">Nothing yet</p> : myItems.map((e) => (
+                      <div key={e.id} className="mine-line item" role="button" tabIndex={0} onClick={offline ? undefined : () => setForm(e)}>
+                        <span>
+                          {e.description || 'Expense'}
+                          <span className="when">{fmtDay(e.spent_on)} · {tag(e)}{e.paid_by === myId && !isPersonal(e) ? ' · you paid' : ''}</span>
+                        </span>
+                        <span className="amt">{formatMoney(myShareOf(e), currency)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="btn-row">
+                    {!offline && <button className="btn btn-primary btn-sm" onClick={addPersonal}><Icon name="plus" size={16} />Add personal expense</button>}
+                    <button className="btn btn-sm" onClick={download}>Download my spending</button>
+                  </div>
+                  <p className="muted small">Personal expenses are only visible to you and don’t affect anyone else’s balances. The download covers AUD and IDR.</p>
+                </div>
+              )}
             </section>
           )}
           <section className="card spend">
