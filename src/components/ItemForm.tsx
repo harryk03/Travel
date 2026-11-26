@@ -83,8 +83,8 @@ export function ItemForm({ initial, onClose }: { initial: Partial<Item>; onClose
         {f.kind === 'stay' && <Field label="Check-out"><input type="date" value={f.end_day} min={f.day} onChange={set('end_day')} /></Field>}
       </div>
       <div className="row2">
-        <Field label="Start time (optional)"><input type="time" value={f.start_time} onChange={set('start_time')} /></Field>
-        <Field label="End time (optional)"><input type="time" value={f.end_time} onChange={set('end_time')} /></Field>
+        <Field label={f.kind === 'stay' ? 'Check-in time' : 'Start time (optional)'}><input type="time" value={f.start_time} onChange={set('start_time')} /></Field>
+        <Field label={f.kind === 'stay' ? 'Check-out time' : 'End time (optional)'}><input type="time" value={f.end_time} onChange={set('end_time')} /></Field>
       </div>
       <Field label="Location"><input value={f.location_name} onChange={set('location_name')} placeholder="Place name or area" /></Field>
       <Field label="Google Maps link (optional)"><input value={f.maps_url} onChange={set('maps_url')} placeholder="https://maps.app.goo.gl/…" inputMode="url" /></Field>

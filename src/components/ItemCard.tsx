@@ -60,7 +60,9 @@ export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions, compa
           <span onClick={(e) => e.stopPropagation()}><StatusPill status={item.status} onClick={onToggleStatus} /></span>
         </div>
         {item.kind === 'stay' && item.end_day && (
-          <p className="plan-note">Check-in {fmtDay(item.day)} · check-out {fmtDay(item.end_day)}</p>
+          <p className="plan-note">
+            Check-in {fmtDay(item.day)}{item.start_time ? `, ${fmtTime(item.start_time)}` : ''} · check-out {fmtDay(item.end_day)}{item.end_time ? `, ${fmtTime(item.end_time)}` : ''}
+          </p>
         )}
         {item.notes && <p className="plan-note">{item.notes}</p>}
         {audience && <span className="plan-private"><Icon name="lock" size={14} />Only {audience}</span>}
