@@ -4,3 +4,6 @@ dist-demo
 .env
 .env.local
 .vercel
+
+# Private project brief for discussing ideas elsewhere; holds trip details, kept out of git
+docs/PROJECT_BRIEF.md
