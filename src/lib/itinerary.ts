@@ -52,7 +52,7 @@ export function toShared(data: TripData): SharedTrip {
   const { name, destination, start_date, end_date, is_example } = data.trip;
   return {
     trip: { name, destination, start_date, end_date, is_example },
-    items: sortItems(data.items).map((i) => ({
+    items: sortItems(data.items.filter((i) => !i.visible_to)).map((i) => ({
       id: i.id, day: i.day, end_day: i.end_day, kind: i.kind, title: i.title,
       start_time: i.start_time, end_time: i.end_time, status: i.status,
       location_name: i.location_name, address: i.address, maps_url: i.maps_url,

@@ -147,6 +147,11 @@ export function createLocalBackend(): Backend {
       db.members = db.members.map((x) => (x.trip_id === m.trip_id && x.user_id === m.user_id ? { ...x, ...patch } : x));
       persist(db);
     },
+    async linkTraveller(travellerId, userId) {
+      const db = load();
+      db.travellers = db.travellers.map((t) => (t.id === travellerId ? { ...t, user_id: userId } : t));
+      persist(db);
+    },
     async removeMember(m) {
       const db = load();
       db.members = db.members.filter((x) => !(x.trip_id === m.trip_id && x.user_id === m.user_id));

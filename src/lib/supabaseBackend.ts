@@ -130,6 +130,9 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     async removeMember(m: Member) {
       check(await sb.from('trip_members').delete().eq('trip_id', m.trip_id).eq('user_id', m.user_id));
     },
+    async linkTraveller(travellerId, userId) {
+      check(await sb.rpc('link_traveller', { p_traveller: travellerId, p_user: userId }));
+    },
 
     async getShared(token) {
       return (check(await sb.rpc('get_shared_trip', { p_token: token })) as SharedTrip | null) ?? null;

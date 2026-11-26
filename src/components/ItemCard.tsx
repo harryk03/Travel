@@ -1,7 +1,8 @@
 import { fmtDay, fmtTime } from '../lib/dates';
 import { directionsUrl, hasLocation, openInMapsUrl } from '../lib/maps';
 import { KIND_META, type Item, type SharedItem } from '../lib/types';
-import { StatusPill } from '../ui';
+import { useContext } from 'react';
+import { Ctx, StatusPill } from '../ui';
 
 interface Props {
   item: Item | SharedItem;
@@ -31,6 +32,10 @@ export function MapLinks({ p }: { p: Parameters<typeof openInMapsUrl>[0] }) {
 export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions }: Props) {
   const meta = KIND_META[item.kind];
   const full = item as Item;
+  const ctx = useContext(Ctx);
+  const audience = full.visible_to && ctx
+    ? ctx.data.travellers.filter((t) => full.visible_to!.includes(t.id)).map((t) => t.name).join(', ')
+    : null;
   return (
     <div className={`card item-card kind-${item.kind} status-${item.status}`} onClick={onOpen} role={onOpen ? 'button' : undefined}
       tabIndex={onOpen ? 0 : undefined} onKeyDown={(e) => onOpen && (e.key === 'Enter') && onOpen()}>
@@ -49,6 +54,7 @@ export function ItemCard({ item, onOpen, onToggleStatus, showDay, actions }: Pro
         {(item.location_name || item.address) && (
           <div className="item-sub">📍 {item.location_name || item.address}</div>
         )}
+        {audience && <div className="item-audience">🔒 Only {audience}</div>}
         {item.notes && <div className="item-notes">{item.notes}</div>}
         {'booking_ref' in item && (full.booking_ref || full.private_notes) && (
           <div className="item-private">🔒 {[full.booking_ref && `Ref ${full.booking_ref}`, full.private_notes].filter(Boolean).join(' · ')}</div>

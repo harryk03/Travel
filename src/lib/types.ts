@@ -62,6 +62,8 @@ export interface Item {
   private_notes: string | null;
   booking_ref: string | null;
   position: number;
+  /** Traveller ids who can see this plan; null = everyone in the trip. Enforced by the database. */
+  visible_to?: string[] | null;
 }
 
 export interface Share {

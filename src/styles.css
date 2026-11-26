@@ -168,6 +168,7 @@ button.pill { cursor: pointer; }
 .item-title { font-weight: 700; overflow-wrap: anywhere; }
 .item-sub { font-size: .85rem; color: var(--muted); overflow-wrap: anywhere; }
 .item-notes { font-size: .875rem; margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.item-audience { font-size: .8rem; font-weight: 700; color: var(--primary); margin-top: 3px; }
 .item-private { font-size: .8rem; margin-top: 4px; color: var(--muted); background: var(--surface-2); padding: 3px 8px; border-radius: 6px; display: inline-block; }
 .item-foot { display: flex; align-items: center; gap: 14px; margin-top: 6px; flex-wrap: wrap; }
 .item-foot:empty { display: none; }
@@ -242,6 +243,7 @@ button.pill { cursor: pointer; }
 .member-list li > span:first-child { flex: 1; }
 .role { font-size: .75rem; font-weight: 700; color: var(--muted); text-transform: uppercase; }
 .inline-input { flex: 1; min-height: 38px; }
+.link-select { width: auto; min-height: 34px; padding: 4px 8px; font-size: .85rem; }
 
 /* Banners, toasts, empty */
 .example-banner { background: var(--warn-soft); color: var(--warn); border-radius: var(--radius-sm); padding: 8px 12px; font-size: .85rem; font-weight: 600; margin-bottom: 14px; }

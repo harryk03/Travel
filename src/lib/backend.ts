@@ -36,6 +36,8 @@ export interface Backend {
   deleteTrip(id: string): Promise<void>;
   updateMember(m: Member, patch: Partial<Pick<Member, 'role'>>): Promise<void>;
   removeMember(m: Member): Promise<void>;
+  /** Owner only: attach a traveller to a member's account (merging any duplicate entry for that account). */
+  linkTraveller(travellerId: string, userId: string): Promise<void>;
 
   getShared(token: string): Promise<SharedTrip | null>;
 }

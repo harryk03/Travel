@@ -115,12 +115,26 @@ export function SettingsSheet({ onClose, onSwitchTrip, onSignOut }: { onClose: (
 
       <section className="settings-sec">
         <h3>Travellers for expenses</h3>
-        <p className="muted small">Everyone who shares costs. Members are added automatically; add mates who haven’t signed up yet.</p>
+        <p className="muted small">Everyone who shares costs. When a mate joins, their account links to the name with the same first name.
+          {isOwner && cloud && ' If a name didn’t link, pick their account next to it. Any duplicate entry is merged in.'}</p>
         <ul className="member-list">
           {travellers.map((tr) => (
             <li key={tr.id}>
               <input className="inline-input" defaultValue={tr.name} disabled={offline}
                 onBlur={(e) => e.target.value.trim() && e.target.value !== tr.name && act(() => backend.save('travellers', { ...tr, name: e.target.value.trim() }), 'Renamed')} />
+              {tr.user_id && <span className="role">✓ account</span>}
+              {!tr.user_id && isOwner && cloud && !offline && members.length > 0 && (
+                <select className="link-select" value="" aria-label={`Link ${tr.name} to an account`}
+                  onChange={(e) => {
+                    const m = members.find((x) => x.user_id === e.target.value);
+                    if (m && confirm(`Link “${tr.name}” to ${m.display_name}’s account? Their plans, visibility and expenses will follow this name.`)) {
+                      void act(() => backend.linkTraveller(tr.id, m.user_id), 'Linked');
+                    }
+                  }}>
+                  <option value="">Link account…</option>
+                  {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
+                </select>
+              )}
               {!tr.user_id && !offline && <button className="btn btn-sm btn-danger-ghost" onClick={() => removeTraveller(tr.id, tr.name)}>Remove</button>}
             </li>
           ))}
