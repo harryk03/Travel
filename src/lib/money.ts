@@ -54,23 +54,29 @@ export interface Settlement {
   currency: Currency;
 }
 
-/** Greedy settle-up: largest debtor pays largest creditor until everyone is square. */
-export function settleUp(net: Record<string, number>, currency: Currency): Settlement[] {
+/**
+ * Who pays whom: everyone pays back the person who paid for each expense, and the only netting is
+ * between the same two people (if A owes B and B owes A, just the difference is paid).
+ * Repayments count as money the payer gave the recipient, so they reduce what the payer owes.
+ */
+export function settleUp(expenses: Expense[], currency: Currency): Settlement[] {
+  const owed = new Map<string, number>(); // "debtor|creditor" -> amount
+  const add = (from: string, to: string, amt: number) => owed.set(`${from}|${to}`, (owed.get(`${from}|${to}`) ?? 0) + amt);
+  for (const e of expenses) {
+    if (e.currency !== currency) continue;
+    for (const s of e.shares) if (s.traveller_id !== e.paid_by) add(s.traveller_id, e.paid_by, s.amount);
+  }
   const eps = 0.5 / unit(currency);
-  const debtors = Object.entries(net).filter(([, v]) => v < -eps).map(([id, v]) => ({ id, v: -v }));
-  const creditors = Object.entries(net).filter(([, v]) => v > eps).map(([id, v]) => ({ id, v }));
-  debtors.sort((a, b) => b.v - a.v);
-  creditors.sort((a, b) => b.v - a.v);
   const out: Settlement[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < debtors.length && j < creditors.length) {
-    const pay = Math.min(debtors[i].v, creditors[j].v);
-    out.push({ from: debtors[i].id, to: creditors[j].id, amount: round(pay, currency), currency });
-    debtors[i].v -= pay;
-    creditors[j].v -= pay;
-    if (debtors[i].v <= eps) i++;
-    if (creditors[j].v <= eps) j++;
+  const seen = new Set<string>();
+  for (const key of owed.keys()) {
+    const [a, b] = key.split('|');
+    const pair = a < b ? `${a}|${b}` : `${b}|${a}`;
+    if (seen.has(pair)) continue;
+    seen.add(pair);
+    const net = round((owed.get(`${a}|${b}`) ?? 0) - (owed.get(`${b}|${a}`) ?? 0), currency);
+    if (net > eps) out.push({ from: a, to: b, amount: net, currency });
+    else if (net < -eps) out.push({ from: b, to: a, amount: -net, currency });
   }
   return out;
 }

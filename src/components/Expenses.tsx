@@ -12,7 +12,10 @@ export function Expenses() {
   const name = (id: string) => travellers.find((t) => t.id === id)?.name ?? 'Removed traveller';
 
   const net = useMemo(() => balances(expenses, travellers), [expenses, travellers]);
-  const plan = useMemo(() => settleUp(net[currency], currency), [net, currency]);
+  const plan = useMemo(() => {
+    const order = (id: string) => travellers.findIndex((t) => t.id === id);
+    return settleUp(expenses, currency).sort((a, b) => order(a.from) - order(b.from) || order(a.to) - order(b.to));
+  }, [expenses, travellers, currency]);
   const total = expenses.filter((e) => e.kind === 'expense' && e.currency === currency).reduce((s, e) => s + e.amount, 0);
 
   const repay = (s: Settlement) => setForm({
@@ -48,7 +51,8 @@ export function Expenses() {
       </section>
 
       <section>
-        <h3 className="section-title">🤝 Settle up ({currency})</h3>
+        <h3 className="section-title">🤝 Who pays who ({currency})</h3>
+        <p className="muted small">Everyone pays back whoever paid. Between two people who both paid for things, only the difference is shown.</p>
         {plan.length === 0 ? <p className="muted">Everyone’s square in {currency}.</p> : (
           <div className="stack">
             {plan.map((s, i) => (

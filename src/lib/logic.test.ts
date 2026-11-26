@@ -68,8 +68,29 @@ describe('money', () => {
     const net = balances(ex, tr);
     expect(net.AUD).toEqual({ a: 30, b: 0, c: -30 });
     expect(net.IDR).toEqual({ a: -100000, b: 200000, c: -100000 });
-    const plan = settleUp(net.AUD, 'AUD');
-    expect(plan).toEqual([{ from: 'c', to: 'a', amount: 30, currency: 'AUD' }]);
+    // c owes a 30; b owed a 30 but repaid it, so nothing left between them
+    expect(settleUp(ex, 'AUD')).toEqual([{ from: 'c', to: 'a', amount: 30, currency: 'AUD' }]);
+  });
+});
+
+describe('who pays who', () => {
+  it('pays each payer back; only the two payers net against each other', () => {
+    const ids = ['harry', 'adem', 'abel', 'rob', 'jas'];
+    const base = { trip_id: 't', split_type: 'equal' as const, spent_on: '2026-12-01', kind: 'expense' as const, currency: 'AUD' as const };
+    const ex: Expense[] = [
+      { ...base, id: '1', description: 'Kenaya', amount: 1447.16, paid_by: 'harry', shares: equalShares(1447.16, 'AUD', ids) },
+      { ...base, id: '2', description: 'Alex', amount: 3453.01, paid_by: 'rob', shares: equalShares(3453.01, 'AUD', ids) },
+      { ...base, id: '3', description: 'Befam', amount: 1432.30, paid_by: 'harry', shares: equalShares(1432.30, 'AUD', ids) },
+    ];
+    const plan = settleUp(ex, 'AUD');
+    const get = (f: string, t: string) => plan.find((p) => p.from === f && p.to === t)?.amount;
+    for (const m of ['adem', 'abel', 'jas']) {
+      expect(get(m, 'harry')).toBe(575.89);
+      expect(get(m, 'rob')).toBe(690.6);
+    }
+    expect(get('harry', 'rob')).toBe(114.72);
+    expect(get('rob', 'harry')).toBeUndefined();
+    expect(plan).toHaveLength(7);
   });
 });
 
