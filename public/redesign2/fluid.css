@@ -1,0 +1,81 @@
+/* Trip HQ redesign 2: the unslop pass plus Apple-style fluid interaction.
+   Builds on /redesign/style.css. Design pass with unslop by Damir Sokolovsky (@heydamir), CC BY 4.0. */
+
+html { font-size: 100%; }
+body { font-size: 0.9375rem; line-height: 1.47; font-optical-sizing: auto; overscroll-behavior-y: none; }
+button, .chip, .plan, .exp, .owe .btn { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+
+/* Size-specific tracking and leading */
+.page-title { font-size: 1.75rem; line-height: 1.14; letter-spacing: -0.015em; }
+.pass-title { font-size: 1.5rem; line-height: 1.17; letter-spacing: -0.012em; }
+.pass-day b { letter-spacing: -0.03em; }
+.spend-v { letter-spacing: -0.025em; }
+.section-meta, .trip-dates, .stub-k, .pass-top, .stop .k { letter-spacing: 0.01em; }
+
+/* Response: feedback on press, instantly */
+.btn:active, .chip:active, .type:active, .icon-btn:active, .seg button:active, .add-row:active { transform: scale(.97); transition: transform 90ms ease-out; }
+.exp:active, .place:active { transform: scale(.99); transition: transform 90ms ease-out; }
+.tabbar button:active svg.i { transform: scale(.88); transition: transform 90ms ease-out; }
+.tabbar button svg.i { transition: transform 260ms cubic-bezier(.22, 1, .36, 1); }
+
+/* Materials: translucent chrome over scrolling content, edge effect instead of a fixed divider */
+.topbar { background: color-mix(in srgb, var(--bg) 72%, transparent); backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%); border-bottom-color: transparent; transition: border-color 200ms ease; }
+.topbar[data-scrolled="true"] { border-bottom-color: var(--line); }
+.tabbar { background: color-mix(in srgb, var(--bg) 70%, transparent); backdrop-filter: blur(20px) saturate(170%); -webkit-backdrop-filter: blur(20px) saturate(170%); border-top-color: transparent; transition: border-color 200ms ease; }
+.tabbar[data-under="true"] { border-top-color: var(--line); }
+.sidebar { position: sticky; }
+
+/* Moving selection: one highlight that springs between tabs */
+.tabbar { position: fixed; }
+.tab-ind { position: absolute; top: 6px; left: 0; height: 44px; border-radius: 12px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); pointer-events: none; will-change: transform; }
+.tabbar button { position: relative; z-index: 1; }
+.tabbar button[aria-current="true"] { color: var(--text); }
+#side-nav { position: relative; display: flex; flex-direction: column; gap: 2px; }
+.side-ind { position: absolute; left: 0; right: 0; top: 0; height: 36px; border-radius: 8px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); pointer-events: none; will-change: transform; }
+.nav { position: relative; z-index: 1; }
+.nav[aria-current="true"] { background: none !important; box-shadow: none !important; }
+
+/* View pager: horizontal swipes between tabs, vertical scroll stays native */
+#view { touch-action: pan-y; will-change: transform; }
+#view.enter > * { animation: none; }
+
+/* Reorder by dragging the grip */
+.plan { grid-template-columns: 56px 20px minmax(0, 1fr) 32px; background: var(--bg); will-change: transform; }
+.grip { display: grid; place-items: center; width: 32px; height: 40px; margin-top: -8px; border: 0; background: none; color: var(--muted); border-radius: 8px; cursor: grab; touch-action: none; }
+.grip:hover { color: var(--text2); background: var(--raised); }
+.plan.lifted { z-index: 3; border-radius: 12px; box-shadow: var(--float); background: var(--card); cursor: grabbing; }
+.plan.lifted .plan-rail::before { opacity: 0; }
+.plan.lifted .grip { color: var(--accent); cursor: grabbing; }
+.plans.dragging .plan:not(.lifted) { pointer-events: none; }
+
+/* Sheet: draggable, interruptible; the app behind steps back */
+.backdrop { opacity: 1; background: none; transition: none; align-items: flex-end; }
+.scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, .42); opacity: 0; }
+.sheet { position: relative; transform: translateY(100%); transition: none; will-change: transform; max-width: 560px; border-radius: 16px 16px 0 0; touch-action: none; }
+@media (min-width: 720px) { .backdrop { align-items: flex-end; } .sheet { border-radius: 16px 16px 0 0; } }
+.sheet-body { touch-action: pan-y; overscroll-behavior: contain; }
+.grabber { display: flex; justify-content: center; padding: 8px 0 0; cursor: grab; }
+.grabber span { width: 36px; height: 5px; border-radius: 3px; background: var(--line-strong); }
+.app { transform-origin: 50% 0; will-change: transform; }
+body.sheet-open { background: #000; }
+body.sheet-open .app { border-radius: 12px; overflow: hidden; }
+
+/* Ledger rows leaving along the path they point to */
+.owe, .bal, .exp { will-change: transform; }
+
+.fluid-note { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: -8px 0 16px; font-size: 0.8125rem; line-height: 1.5; color: var(--muted); }
+.fluid-note kbd { font: 400 0.75rem/1 var(--mono); padding: 2px 6px; border-radius: 4px; background: var(--raised); color: var(--text2); }
+
+/* Accessibility: three independent signals */
+@media (prefers-reduced-motion: reduce) {
+  .btn:active, .chip:active, .type:active, .icon-btn:active, .exp:active, .place:active { transform: none; }
+  body.sheet-open .app { border-radius: 0; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .topbar, .tabbar { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; border-color: var(--line); }
+}
+@media (prefers-contrast: more) {
+  :root { --line: rgba(127, 127, 127, .45); --line-strong: rgba(127, 127, 127, .7); }
+  .topbar, .tabbar { background: var(--bg); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .tab-ind, .side-ind { box-shadow: inset 0 0 0 1.5px var(--text2); }
+}

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="theme-color" content="#141415" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fafafa" media="(prefers-color-scheme: light)" />
+    <title>Trip HQ – redesign test 2</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23171717'/><path d='M8 17l16-8-8 16-2-6-6-2z' fill='none' stroke='%23fff' stroke-width='2' stroke-linejoin='round'/></svg>" />
+    <link rel="preload" href="/redesign/fonts/instrument-sans-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/redesign/fonts/geist-mono-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="/redesign/style.css" />
+    <link rel="stylesheet" href="/redesign2/fluid.css" />
+  </head>
+  <body>
+    <div class="app">
+      <nav class="sidebar" aria-label="Sections">
+        <div class="wordmark"><span class="mark" id="mark"></span>Trip HQ</div>
+        <p class="side-label">Bali NYE</p>
+        <div id="side-nav"></div>
+        <div class="side-trip">
+          <p class="trip-dates">23 Dec – 5 Jan</p>
+          <p class="muted" style="font-size:13px;line-height:20px">5 travellers</p>
+        </div>
+      </nav>
+      <div class="main">
+        <header class="topbar">
+          <div class="trip">
+            <p class="trip-name">Bali NYE</p>
+            <p class="trip-dates">23 Dec – 5 Jan 2027</p>
+          </div>
+          <button class="btn btn-ghost" id="share-btn" aria-label="Share"></button>
+          <button class="icon-btn" id="settings-btn" aria-label="Trip settings"></button>
+        </header>
+        <main class="content">
+          <p class="example-note"><span class="dot"></span>Example data · today shown as 27 Dec</p>
+          <p class="fluid-note">Try: swipe between tabs · drag the dots on a plan to reorder · pull the Add plan sheet down · tap Record in Expenses</p>
+          <div id="view" class="enter"></div>
+          <p class="credit">Design pass with unslop by @heydamir · motion after Apple’s fluid interface principles</p>
+        </main>
+      </div>
+      <nav class="tabbar" id="tabbar" aria-label="Sections"></nav>
+    </div>
+    <div id="sheet-root"></div>
+    <script src="/redesign2/app.js"></script>
+  </body>
+</html>
