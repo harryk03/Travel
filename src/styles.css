@@ -475,3 +475,6 @@ button.status:hover { color: var(--text); }
 .quick-emoji button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 20px; line-height: 1; cursor: pointer; }
 .quick-emoji button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .unpinned-why { margin: -4px 0 12px; }
+.form-problems { margin-top: 8px; padding: 12px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--text); font-size: 14px; line-height: 20px; }
+.form-problems p { font-weight: 600; margin-bottom: 4px; }
+.form-problems ul { margin: 0; padding-left: 18px; }

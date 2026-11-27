@@ -332,10 +332,11 @@ function normalizeWebsite(input: string): string | null {
   }
 }
 
-/** Plain check that the text is one short emoji-ish token (what the database allows: 1–16 characters). */
+/** The database allows 1–16 characters; anything from the emoji keyboard fits. No stricter check, so iPad
+ *  and Android emoji (skin tones, flags, joined emoji) are never refused. */
 function validEmoji(e: string): boolean {
   const t = e.trim();
-  return t.length >= 1 && t.length <= 16 && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(t) && !/\s/.test(t);
+  return t.length >= 1 && t.length <= 16;
 }
 
 function PhoneLinks({ phone }: { phone?: string | null }) {
@@ -451,7 +452,8 @@ function DetailsSheet({ x, onClose }: { x: InboxItem; onClose: () => void }) {
 }
 
 function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: Partial<Place>; inboxId?: string | null; onClose: () => void; onSaved: () => void; onRemove?: () => void }) {
-  const { data, act, backend } = useTrip();
+  const { data, act, backend, toast } = useTrip();
+  const [tried, setTried] = useState(false);
   const [f, setF] = useState({
     name: initial.name ?? '', category: initial.category ?? ('other' as PlaceCategory), address: initial.address ?? '',
     maps_url: initial.maps_url ?? '', notes: initial.notes ?? '', phone: initial.phone ? fmtPhone(initial.phone) : '',
@@ -463,7 +465,14 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
   const website = normalizeWebsite(f.website);
   const websiteOk = !f.website.trim() || Boolean(website);
   const isCustom = f.category === 'custom';
-  const customOk = !isCustom || (validEmoji(f.custom_emoji) && f.custom_label.trim().length >= 1 && f.custom_label.trim().length <= 40);
+  // Save stays tappable; if something needs fixing it says what, instead of a grey button with no reason.
+  const problems = [
+    !f.name.trim() && 'Add a name',
+    !phoneOk && 'Check the phone number: digits only, e.g. +62 821 3573 2415',
+    !websiteOk && 'Check the website, e.g. bendbali.com',
+    isCustom && !validEmoji(f.custom_emoji) && 'Pick an emoji for the category',
+    isCustom && !f.custom_label.trim() && 'Give the category a name',
+  ].filter(Boolean) as string[];
   // Custom categories already used in this trip, so they can be picked again with one tap.
   const customs = useMemo(() => {
     const seen = new Map<string, { emoji: string; label: string }>();
@@ -473,6 +482,11 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
   // The phone column arrives with migration 008 (inboxFiles is only loaded once it exists).
   const hasPhone = data.inboxFiles !== undefined || Boolean(initial.phone);
   const save = async () => {
+    if (problems.length) {
+      setTried(true);
+      toast(problems[0]);
+      return;
+    }
     let parsed = f.maps_url && f.maps_url !== initial.maps_url ? parseMapsUrl(f.maps_url) : null;
     if (parsed?.isShortLink && backend.mode === 'cloud') {
       const full = await resolveShortLink(f.maps_url.trim());
@@ -502,7 +516,7 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
         {onRemove && <button className="btn btn-danger-ghost" onClick={() => confirm('Remove this place?') && onRemove()}>Remove</button>}
         <span className="spacer" />
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" disabled={!f.name.trim() || !phoneOk || !websiteOk || !customOk} onClick={save}>Save</button>
+        <button className="btn btn-primary" onClick={save}>Save</button>
       </>}>
       {inboxId && (initial.source_url ? (
         <p className="field-hint from-post">From a saved post · <a href={safeHttpUrl(initial.source_url) ?? undefined} target="_blank" rel="noreferrer">open it</a> to check the details{initial.maps_url ? '' : ', then paste the Google Maps link below'}</p>
@@ -533,7 +547,7 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
       </Field>
       {isCustom && (
         <div className="custom-cat">
-          <Field label="Emoji" hint={f.custom_emoji && !validEmoji(f.custom_emoji) ? 'One emoji, from the emoji keyboard' : undefined}>
+          <Field label="Emoji" hint={tried && !validEmoji(f.custom_emoji) ? 'Pick an emoji' : undefined}>
             <input className="emoji-input" value={f.custom_emoji} maxLength={16} onChange={(e) => setF({ ...f, custom_emoji: e.target.value.trim() })} placeholder="🎾" aria-describedby="quick-emoji" />
           </Field>
           <Field label="Category name"><input value={f.custom_label} maxLength={40} onChange={(e) => setF({ ...f, custom_label: e.target.value })} placeholder="e.g. Padel" /></Field>
@@ -558,6 +572,12 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
         </Field>
       )}
       <Field label="Notes (optional)"><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>
+      {tried && problems.length > 0 && (
+        <div className="form-problems" role="alert">
+          <p>Before saving:</p>
+          <ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul>
+        </div>
+      )}
     </Sheet>
   );
 }
