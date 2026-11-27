@@ -5,6 +5,7 @@
 //   GET  /api/helper                     open inbox items + saved place names
 //   GET  /api/helper?files=<inbox id>    screenshots on one inbox item (base64)
 //   POST /api/helper {action:"add", inbox, name, category, address, maps_url, lat, lng, phone, notes}
+//        add keep_open:true to add one of several places from the same item (migration 009); the last add ticks it off
 //   POST /api/helper {action:"update", place, ...same fields; blanks are left as they are}
 //   POST /api/helper {action:"flag", inbox, needs}
 
@@ -77,7 +78,7 @@ export default async function handler(req, res) {
       if (!UUID.test(String(b.inbox || ''))) return send(res, 400, { error: 'inbox must be an inbox id' });
       const args = placeArgs(b);
       if (!args.p_name) return send(res, 400, { error: 'name is required' });
-      return await rpc('helper_add_place', { p_inbox: b.inbox, ...args });
+      return await rpc(b.keep_open === true ? 'helper_add_more' : 'helper_add_place', { p_inbox: b.inbox, ...args });
     }
     if (b.action === 'update') {
       if (!UUID.test(String(b.place || ''))) return send(res, 400, { error: 'place must be a place id' });

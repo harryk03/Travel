@@ -75,6 +75,21 @@ async function preview(url, source) {
   }
 }
 
+/** vt./vm.tiktok.com share links redirect to the full video URL; use that (best effort, never fails the save). */
+async function expandShortLink(raw) {
+  try {
+    const u = new URL(raw);
+    if (!/^(vt|vm)\.tiktok\.com$/i.test(u.hostname)) return raw;
+    const r = await fetch(raw, { redirect: 'manual', signal: AbortSignal.timeout(3000), headers: { 'user-agent': 'Mozilla/5.0 (compatible; TripHQ link preview)' } });
+    const next = r.headers.get('location');
+    if (!next) return raw;
+    const full = new URL(next, raw);
+    return /(^|\.)tiktok\.com$/i.test(full.hostname) && /\/video\/|\/photo\//.test(full.pathname) ? full.toString() : raw;
+  } catch {
+    return raw;
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return reply(res, 405, 'Use POST');
   const secret = process.env.INBOX_SECRET || '';
@@ -96,7 +111,7 @@ export default async function handler(req, res) {
   if (!body || typeof body !== 'object' || JSON.stringify(body).length > MAX_BODY) return reply(res, 413, 'Too much was shared');
 
   const raw = extractUrl(String(body.text ?? ''));
-  const url = raw && normalizeUrl(raw);
+  const url = raw && normalizeUrl(await expandShortLink(raw));
   if (!url) return reply(res, 400, 'No link found in what was shared');
   const note = typeof body.note === 'string' ? body.note.trim().slice(0, 500) : '';
   const source = sourceOf(url);
