@@ -12,6 +12,7 @@
 //   POST /api/helper {action:"fill", place, address?, maps_url?, lat?, lng?, phone?, website?, notes?}
 //        fills only EMPTY fields on any place in the trip, including ones people added (migration 011)
 //   POST /api/helper {action:"photo", place, mime, data, thumb, source}   cover photo for a place with none (012)
+//   GET  /api/helper?photos=1  ·  POST {action:"unphoto", photo}   list photos / remove one the helper added (013)
 
 const MAX_BODY = 16_384;
 const MAX_PHOTO_BODY = 900_000; // a photo (base64, up to ~700 KB) plus its thumbnail
@@ -79,6 +80,7 @@ export default async function handler(req, res) {
         if (!UUID.test(String(files))) return send(res, 400, { error: 'files must be an inbox id' });
         return await rpc('helper_files', { p_inbox: String(files) });
       }
+      if (req.query?.photos) return await rpc('helper_photos', {});
       return await rpc('helper_inbox', {});
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'use GET or POST' });
@@ -111,6 +113,10 @@ export default async function handler(req, res) {
     if (b.action === 'flag') {
       if (!UUID.test(String(b.inbox || ''))) return send(res, 400, { error: 'inbox must be an inbox id' });
       return await rpc('helper_flag', { p_inbox: b.inbox, p_needs: str(b.needs, 500) });
+    }
+    if (b.action === 'unphoto') {
+      if (!UUID.test(String(b.photo || ''))) return send(res, 400, { error: 'photo must be a photo id' });
+      return await rpc('helper_remove_photo', { p_photo: b.photo });
     }
     if (b.action === 'fill') {
       if (!UUID.test(String(b.place || ''))) return send(res, 400, { error: 'place must be a place id' });

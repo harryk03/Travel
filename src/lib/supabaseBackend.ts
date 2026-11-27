@@ -172,14 +172,25 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async findPhoto(url) {
       const { data } = await sb.auth.getSession();
-      const res = await fetch(`/api/photo-source?url=${encodeURIComponent(url)}`, {
-        headers: { Authorization: `Bearer ${data.session?.access_token ?? ''}` },
-      });
-      if (!res.ok) {
-        const msg = ((await res.json().catch(() => ({}))) as { error?: string }).error;
-        throw new Error(msg ? `No photo: ${msg}` : 'Couldn’t get a photo from that page');
+      const headers = { Authorization: `Bearer ${data.session?.access_token ?? ''}` };
+      const res = await fetch(`/api/photo-source?list=1&url=${encodeURIComponent(url)}`, { headers });
+      const body = (await res.json().catch(() => ({}))) as { candidates?: string[]; error?: string };
+      if (!res.ok || !body.candidates?.length) throw new Error(body.error ? `No photo: ${body.error}` : 'Couldn’t find a photo on that page');
+      // Try the page's pictures in order; keep the first that is a real photo (big enough, not a strip or an icon).
+      for (const candidate of body.candidates.slice(0, 8)) {
+        const r = await fetch(`/api/photo-source?image=${encodeURIComponent(candidate)}`, { headers }).catch(() => null);
+        if (!r?.ok) continue;
+        const blob = await r.blob();
+        try {
+          const bmp = await createImageBitmap(blob);
+          const { width: w, height: h } = bmp;
+          bmp.close?.();
+          if (w >= 600 && h >= 400 && w / h <= 2.5 && h / w <= 1.6) return { blob, source: r.headers.get('x-photo-source') ?? candidate };
+        } catch {
+          /* not decodable here; try the next one */
+        }
       }
-      return { blob: await res.blob(), source: res.headers.get('x-photo-source') };
+      throw new Error('No photo: that page only has logos or small pictures');
     },
     async linkTraveller(travellerId, userId) {
       check(await sb.rpc('link_traveller', { p_traveller: travellerId, p_user: userId }));
