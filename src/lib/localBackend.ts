@@ -1,7 +1,7 @@
 import type { Backend, NewTrip } from './backend';
 import { uuid } from './backend';
 import { toShared } from './itinerary';
-import type { EditableTable, InboxFile, Member, Trip, TripData, User } from './types';
+import type { EditableTable, InboxFile, Member, PlacePhoto, Trip, TripData, User } from './types';
 
 /**
  * Demo backend: everything lives in this browser's storage. Used for the preview build
@@ -16,6 +16,7 @@ interface DB {
   expenses: TripData['expenses'];
   inbox?: NonNullable<TripData['inbox']>;
   inboxFiles?: Array<InboxFile & { trip_id: string; data: string }>;
+  placePhotos?: Array<PlacePhoto & { trip_id: string; data: string }>;
 }
 
 const KEY = 'tripplanner-demo-db-v1';
@@ -108,6 +109,7 @@ export function createLocalBackend(): Backend {
         inbox: f(db.inbox ?? []).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
         inboxFiles: f(db.inboxFiles ?? []).map(({ id: fid, inbox_id, mime }) => ({ id: fid, inbox_id, mime })),
         placeExtras: true,
+        placePhotos: f(db.placePhotos ?? []).map(({ id: pid, place_id, mime, thumb }) => ({ id: pid, place_id, mime, thumb })),
       });
     },
     subscribe(_tripId, onChange) {
@@ -156,6 +158,7 @@ export function createLocalBackend(): Backend {
         travellers: db.travellers.filter((r) => r.trip_id !== id), places: db.places.filter((r) => r.trip_id !== id),
         items: db.items.filter((r) => r.trip_id !== id), expenses: db.expenses.filter((r) => r.trip_id !== id),
         inbox: (db.inbox ?? []).filter((r) => r.trip_id !== id), inboxFiles: (db.inboxFiles ?? []).filter((r) => r.trip_id !== id),
+        placePhotos: (db.placePhotos ?? []).filter((r) => r.trip_id !== id),
       });
     },
     async updateMember(m, patch) {
@@ -181,6 +184,23 @@ export function createLocalBackend(): Backend {
       const db = load();
       db.inboxFiles = (db.inboxFiles ?? []).filter((x) => x.id !== fileId);
       persist(db);
+    },
+    async listPlacePhotos(placeId) {
+      return structuredClone((load().placePhotos ?? []).filter((x) => x.place_id === placeId));
+    },
+    async addPlacePhoto(photo) {
+      const db = load();
+      if ((db.placePhotos ?? []).filter((x) => x.place_id === photo.place_id).length >= 6) throw new Error('Up to 6 photos per place.');
+      db.placePhotos = [...(db.placePhotos ?? []), { id: uuid(), ...photo }];
+      persist(db);
+    },
+    async removePlacePhoto(photoId) {
+      const db = load();
+      db.placePhotos = (db.placePhotos ?? []).filter((x) => x.id !== photoId);
+      persist(db);
+    },
+    async findPhoto() {
+      throw new Error('Getting photos from websites needs the cloud version.');
     },
     async linkTraveller(travellerId, userId) {
       const db = load();

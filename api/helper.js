@@ -11,8 +11,10 @@
 //   POST /api/helper {action:"flag", inbox, needs}
 //   POST /api/helper {action:"fill", place, address?, maps_url?, lat?, lng?, phone?, website?, notes?}
 //        fills only EMPTY fields on any place in the trip, including ones people added (migration 011)
+//   POST /api/helper {action:"photo", place, mime, data, thumb, source}   cover photo for a place with none (012)
 
 const MAX_BODY = 16_384;
+const MAX_PHOTO_BODY = 900_000; // a photo (base64, up to ~700 KB) plus its thumbnail
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CATEGORIES = ['gym', 'cafe', 'restaurant', 'stay', 'beach_club', 'nightlife', 'activity', 'spa', 'other', 'custom'];
 
@@ -81,10 +83,20 @@ export default async function handler(req, res) {
     }
     if (req.method !== 'POST') return send(res, 405, { error: 'use GET or POST' });
 
-    if (Number(req.headers['content-length'] || 0) > MAX_BODY) return send(res, 413, { error: 'too large' });
+    if (Number(req.headers['content-length'] || 0) > MAX_PHOTO_BODY) return send(res, 413, { error: 'too large' });
     let b = req.body;
     if (typeof b === 'string') { try { b = JSON.parse(b); } catch { b = null; } }
-    if (!b || typeof b !== 'object' || JSON.stringify(b).length > MAX_BODY) return send(res, 400, { error: 'send a JSON body' });
+    if (!b || typeof b !== 'object') return send(res, 400, { error: 'send a JSON body' });
+    const size = JSON.stringify(b).length;
+    if (size > (b.action === 'photo' ? MAX_PHOTO_BODY : MAX_BODY)) return send(res, 413, { error: 'too large' });
+
+    if (b.action === 'photo') {
+      if (!UUID.test(String(b.place || ''))) return send(res, 400, { error: 'place must be a place id' });
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(b.mime)) return send(res, 400, { error: 'mime must be image/jpeg, png or webp' });
+      if (typeof b.data !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(b.data) || typeof b.thumb !== 'string' || !/^[A-Za-z0-9+/=]+$/.test(b.thumb)) return send(res, 400, { error: 'data and thumb must be base64' });
+      const source = str(b.source, 2048);
+      return await rpc('helper_add_photo', { p_place: b.place, p_mime: b.mime, p_data: b.data, p_thumb: b.thumb, p_source: source && /^https?:\/\//i.test(source) ? source : null });
+    }
 
     if (b.action === 'add') {
       if (!UUID.test(String(b.inbox || ''))) return send(res, 400, { error: 'inbox must be an inbox id' });

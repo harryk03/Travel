@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient, type User as SbUser } from '@supabase/supabase-js';
 import type { Backend, NewTrip } from './backend';
 import { uuid } from './backend';
-import type { EditableTable, InboxFile, Member, SharedTrip, Trip, TripData, User } from './types';
+import type { EditableTable, InboxFile, Member, PlacePhoto, SharedTrip, Trip, TripData, User } from './types';
 
 function toUser(u: SbUser | null | undefined): User | null {
   if (!u) return null;
@@ -68,7 +68,7 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       return check(await sb.rpc('join_trip', { p_code: code, p_display_name: displayName })) as string;
     },
     async loadTrip(id) {
-      const [trip, members, travellers, places, items, expenses, inbox, files, extras] = await Promise.all([
+      const [trip, members, travellers, places, items, expenses, inbox, files, extras, photos] = await Promise.all([
         sb.from('trips').select('*').eq('id', id).single(),
         sb.from('trip_members').select('*').eq('trip_id', id),
         sb.from('travellers').select('*').eq('trip_id', id).order('created_at'),
@@ -78,6 +78,7 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         sb.from('inbox_items').select('*').eq('trip_id', id).order('created_at', { ascending: false }),
         sb.from('inbox_files').select('id,inbox_id,mime').eq('trip_id', id).order('created_at'),
         sb.from('places').select('website').eq('trip_id', id).limit(1),
+        sb.from('place_photos').select('id,place_id,mime,thumb').eq('trip_id', id).order('created_at'),
       ]);
       return {
         trip: check(trip),
@@ -92,6 +93,8 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         inboxFiles: files.error ? undefined : (files.data as TripData['inboxFiles']),
         // Errors until migration 010 adds the website column.
         placeExtras: !extras.error,
+        // Missing until migration 012 has run.
+        placePhotos: photos.error ? undefined : (photos.data as TripData['placePhotos']),
       } as TripData;
     },
     subscribe(tripId, onChange) {
@@ -113,6 +116,7 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       const inboxCh = sb.channel(`inbox-${tripId}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'inbox_items', filter: `trip_id=eq.${tripId}` }, debounced)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'inbox_files', filter: `trip_id=eq.${tripId}` }, debounced)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'place_photos', filter: `trip_id=eq.${tripId}` }, debounced)
         .subscribe();
       return () => {
         void sb.removeChannel(inboxCh);
@@ -156,6 +160,26 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async removeInboxFile(id) {
       check(await sb.from('inbox_files').delete().eq('id', id));
+    },
+    async listPlacePhotos(placeId) {
+      return check(await sb.from('place_photos').select('id,place_id,mime,thumb,data,source_url').eq('place_id', placeId).order('created_at')) as PlacePhoto[];
+    },
+    async addPlacePhoto(f) {
+      check(await sb.from('place_photos').insert(f));
+    },
+    async removePlacePhoto(id) {
+      check(await sb.from('place_photos').delete().eq('id', id));
+    },
+    async findPhoto(url) {
+      const { data } = await sb.auth.getSession();
+      const res = await fetch(`/api/photo-source?url=${encodeURIComponent(url)}`, {
+        headers: { Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+      });
+      if (!res.ok) {
+        const msg = ((await res.json().catch(() => ({}))) as { error?: string }).error;
+        throw new Error(msg ? `No photo: ${msg}` : 'Couldn’t get a photo from that page');
+      }
+      return { blob: await res.blob(), source: res.headers.get('x-photo-source') };
     },
     async linkTraveller(travellerId, userId) {
       check(await sb.rpc('link_traveller', { p_traveller: travellerId, p_user: userId }));

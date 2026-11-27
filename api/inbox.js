@@ -2,7 +2,8 @@
 // POST { text, note } with "Authorization: Bearer <INBOX_SECRET>". Replies in plain text for the Shortcut to show.
 // Writes only through the inbox_add_details() database function (or inbox_add() before migration 008), using the public Supabase key; no service-role key is needed.
 import { createHash, timingSafeEqual } from 'node:crypto';
-import { extractUrl, isUnsafeHost, normalizeUrl, sourceOf } from './_inbox-url.js';
+import { extractUrl, normalizeUrl, sourceOf } from './_inbox-url.js';
+import { fetchText as fetchLimited } from './_safe-fetch.js';
 import { decodeEntities, extractDetails } from './_inbox-extract.js';
 
 const MAX_BODY = 4096;
@@ -12,36 +13,6 @@ const reply = (res, status, text) => {
   return res.status(status).send(text);
 };
 const sameSecret = (a, b) => timingSafeEqual(createHash('sha256').update(a).digest(), createHash('sha256').update(b).digest());
-
-async function fetchLimited(url, { timeoutMs = 3000, maxBytes = 300_000, accept = 'text/html' } = {}) {
-  let current = url;
-  for (let hop = 0; hop < 4; hop++) {
-    const u = new URL(current);
-    if (!/^https?:$/.test(u.protocol) || isUnsafeHost(u.hostname)) return null;
-    const res = await fetch(current, {
-      redirect: 'manual',
-      signal: AbortSignal.timeout(timeoutMs),
-      headers: { accept, 'user-agent': 'Mozilla/5.0 (compatible; TripHQ link preview)' },
-    });
-    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
-      current = new URL(res.headers.get('location'), current).toString();
-      continue;
-    }
-    if (!res.ok || !res.body) return null;
-    const reader = res.body.getReader();
-    const chunks = [];
-    let size = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.length;
-      chunks.push(value);
-      if (size >= maxBytes) { await reader.cancel(); break; }
-    }
-    return new TextDecoder().decode(Buffer.concat(chunks.map((c) => Buffer.from(c))));
-  }
-  return null;
-}
 
 const decode = (s) => decodeEntities(s).replace(/\s+/g, ' ').trim();
 const meta = (html, prop) => {

@@ -122,6 +122,16 @@ export interface InboxItem {
   needs?: string | null;
 }
 
+/** A photo on a saved place (migration 012). `thumb` is a small preview; `data` is loaded only when needed. */
+export interface PlacePhoto {
+  id: string;
+  place_id: string;
+  mime: string;
+  thumb: string;
+  data?: string;
+  source_url?: string | null;
+}
+
 /** A screenshot attached to an inbox item. `data` is base64, loaded only when needed. */
 export interface InboxFile {
   id: string;
@@ -143,6 +153,8 @@ export interface TripData {
   inboxFiles?: InboxFile[];
   /** True once migration 010 has run: websites, the Spa category and custom categories can be saved. */
   placeExtras?: boolean;
+  /** Photo thumbnails per place. Undefined until migration 012 has run (hides the photo features). */
+  placePhotos?: PlacePhoto[];
 }
 
 /** What external friends see. Mirrors get_shared_trip() in supabase/schema.sql. */

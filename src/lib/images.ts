@@ -22,8 +22,29 @@ async function decode(file: Blob): Promise<{ w: number; h: number; draw: (ctx: C
   return { w: img.naturalWidth, h: img.naturalHeight, draw: (ctx, w, h) => ctx.drawImage(img, 0, 0, w, h) };
 }
 
+/** A small square-ish preview (about 160 px, ~8 KB) for lists and the map. */
+export async function makeThumb(file: Blob): Promise<string> {
+  const src = await decode(file);
+  const scale = Math.min(1, 200 / Math.min(src.w, src.h));
+  const w = Math.max(1, Math.round(src.w * scale));
+  const h = Math.max(1, Math.round(src.h * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not process that image');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, w, h);
+  src.draw(ctx, w, h);
+  for (const q of [0.6, 0.45, 0.3]) {
+    const data = canvas.toDataURL('image/jpeg', q).split(',')[1] ?? '';
+    if (data.length >= 50 && data.length <= 38000) return data;
+  }
+  throw new Error('Could not make a preview of that image');
+}
+
 export async function shrinkImage(file: Blob): Promise<{ mime: 'image/jpeg'; data: string }> {
-  if (!file.type.startsWith('image/')) throw new Error('Only images can be added');
+  if (file.type && !file.type.startsWith('image/')) throw new Error('Only images can be added');
   const src = await decode(file);
   for (const [side, quality] of [[1400, 0.72], [1100, 0.62], [900, 0.55], [700, 0.5]] as const) {
     const scale = Math.min(1, side / Math.max(src.w, src.h));

@@ -1,4 +1,4 @@
-import type { EditableTable, InboxFile, Member, SharedTrip, Trip, TripData, User } from './types';
+import type { EditableTable, InboxFile, Member, PlacePhoto, SharedTrip, Trip, TripData, User } from './types';
 
 export interface NewTrip {
   name: string;
@@ -44,6 +44,12 @@ export interface Backend {
   listInboxFiles(inboxId: string): Promise<InboxFile[]>;
   addInboxFile(f: { trip_id: string; inbox_id: string; mime: string; data: string }): Promise<void>;
   removeInboxFile(id: string): Promise<void>;
+  /** Full-size photos of a place (with data), oldest first. */
+  listPlacePhotos(placeId: string): Promise<PlacePhoto[]>;
+  addPlacePhoto(f: { trip_id: string; place_id: string; mime: string; data: string; thumb: string; source_url?: string | null }): Promise<void>;
+  removePlacePhoto(id: string): Promise<void>;
+  /** The preview photo of a web page or post, found by the server (cloud only). */
+  findPhoto(url: string): Promise<{ blob: Blob; source: string | null }>;
 
   getShared(token: string): Promise<SharedTrip | null>;
 }

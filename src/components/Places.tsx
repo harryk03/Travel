@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { decodeEntities } from '../../api/_inbox-extract.js';
 import { fmtDay, fmtRange } from '../lib/dates';
-import { fmtPhone, shrinkImage, validPhone, waDigits } from '../lib/images';
+import { fmtPhone, makeThumb, shrinkImage, validPhone, waDigits } from '../lib/images';
 import { extractUrl, isGoogleMapsUrl, parseMapsUrl, resolveShortLink, safeHttpUrl } from '../lib/maps';
-import { CATEGORY_META, placeGroup, placeMeta, type InboxFile, type InboxItem, type Item, type Place, type PlaceCategory } from '../lib/types';
+import { CATEGORY_META, placeGroup, placeMeta, type InboxFile, type InboxItem, type Item, type Place, type PlaceCategory, type PlacePhoto } from '../lib/types';
 import { Empty, Field, Icon, Segmented, Sheet, useTrip } from '../ui';
 import type { Pin } from './PlacesMap';
 import { MapLinks } from './ItemCard';
@@ -46,6 +46,14 @@ export function Places() {
   const setView = (v: 'list' | 'map') => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* not saved */ } };
   const [selected, setSelected] = useState<string | null>(null);
   const [pinFor, setPinFor] = useState<Place | null>(null);
+  // The full listing of a place (read view). Kept by id so it shows fresh data after edits and realtime updates.
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const detail = data.places.find((p) => p.id === detailId) ?? null;
+  const thumbs = useMemo(() => {
+    const m = new Map<string, PlacePhoto>();
+    for (const ph of data.placePhotos ?? []) if (!m.has(ph.place_id)) m.set(ph.place_id, ph);
+    return m;
+  }, [data.placePhotos]);
   const inbox = data.inbox;
   const fresh = inbox?.filter((x) => x.status === 'new') ?? [];
   const dismissed = inbox?.filter((x) => x.status === 'dismissed') ?? [];
@@ -165,7 +173,7 @@ export function Places() {
 
       {view === 'map' ? (
         <MapView places={shown} stays={filter === 'all' || filter === 'stay' ? data.items.filter((i) => i.kind === 'stay' && hasPin(i)) : []}
-          selected={selected} onSelect={setSelected} onEdit={offline ? undefined : setForm} onPin={offline ? undefined : setPinFor} />
+          selected={selected} onSelect={setSelected} onOpen={(p) => setDetailId(p.id)} onPin={offline ? undefined : setPinFor} thumbs={thumbs} />
       ) : shown.length === 0 ? (
         <Empty emoji="📍" title="No places saved yet">
           <p className="muted small">In Google Maps tap Share → Copy link, then paste it above.</p>
@@ -173,8 +181,9 @@ export function Places() {
       ) : (
         <div className="place-grid">
           {shown.map((p) => (
-            <div key={p.id} className="card place-card" onClick={offline ? undefined : () => setForm(p)} role="button" tabIndex={0}>
-              <div className="place-emoji">{placeMeta(p).emoji}</div>
+            <div key={p.id} className="card place-card" onClick={() => setDetailId(p.id)} role="button" tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && setDetailId(p.id)}>
+              <PlaceThumb place={p} photo={thumbs.get(p.id)} />
               <div className="place-main">
                 <div className="item-title">{p.name}</div>
                 {p.address && <div className="item-sub">{p.address}</div>}
@@ -196,6 +205,11 @@ export function Places() {
       )}
 
       {pinFor && <PinSheet place={pinFor} onClose={() => setPinFor(null)} />}
+      {detail && !form && !pinFor && (
+        <PlaceDetail place={detail} onClose={() => setDetailId(null)}
+          onEdit={offline ? undefined : () => setForm(detail)} onPin={offline ? undefined : () => setPinFor(detail)}
+          onItinerary={offline ? undefined : () => { setDetailId(null); addToItinerary(detail); }} />
+      )}
       {detailsFor && <DetailsSheet x={detailsFor} onClose={() => setDetailsFor(null)} />}
       {form && <PlaceForm initial={form} inboxId={fromInbox} onClose={() => { setForm(null); setFromInbox(null); }} onSaved={() => { setForm(null); setFromInbox(null); }}
         onRemove={form.id ? () => act(() => backend.remove('places', form.id!), 'Place removed').then((ok) => ok && setForm(null)) : undefined} />}
@@ -203,9 +217,9 @@ export function Places() {
   );
 }
 
-function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
+function MapView({ places, stays, selected, onSelect, onOpen, onPin, thumbs }: {
   places: Place[]; stays: Item[]; selected: string | null; onSelect: (id: string | null) => void;
-  onEdit?: (p: Place) => void; onPin?: (p: Place) => void;
+  onOpen: (p: Place) => void; onPin?: (p: Place) => void; thumbs: Map<string, PlacePhoto>;
 }) {
   const { toast } = useTrip();
   const pins = useMemo<Pin[]>(() => [
@@ -217,45 +231,41 @@ function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
   const stay = stays.find((i) => `stay:${i.id}` === selected);
   return (
     <>
-      <Suspense fallback={<div className="map-wrap"><div className="map map-loading">Loading map…</div></div>}>
-        <PlacesMap pins={pins} selected={selected} onSelect={onSelect} onLocateError={toast} />
-      </Suspense>
-      {place && (
-        <div className="card map-card">
-          <div className="place-emoji">{placeMeta(place).emoji}</div>
-          <div className="place-main">
-            <div className="item-title">{place.name}</div>
-            {place.address && <div className="item-sub">{place.address}</div>}
-            {place.notes && <div className="item-notes map-card-notes">{place.notes}</div>}
-            <div className="item-foot">
-              <MapLinks p={place} />
-              <SiteLink url={place.website} />
-              <PhoneLinks phone={place.phone} />
-              {safeHttpUrl(place.source_url) && (
-                <a className="post-link" href={safeHttpUrl(place.source_url)!} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Post</a>
-              )}
-              {onEdit && <button className="link-btn" onClick={() => onEdit(place)}>Details</button>}
+      <div className={place || stay ? 'map-shell has-banner' : 'map-shell'}>
+        <Suspense fallback={<div className="map-wrap"><div className="map map-loading">Loading map…</div></div>}>
+          <PlacesMap pins={pins} selected={selected} onSelect={onSelect} onLocateError={toast} />
+        </Suspense>
+        {place && (
+          // First tap on a pin: this banner. Tapping the banner opens the full listing.
+          <div className="map-banner" role="button" tabIndex={0} onClick={() => onOpen(place)} onKeyDown={(e) => e.key === 'Enter' && onOpen(place)}
+            aria-label={`${place.name}, open details`}>
+            <PlaceThumb place={place} photo={thumbs.get(place.id)} large />
+            <div className="map-banner-main">
+              <div className="map-banner-title">{place.name}</div>
+              <div className="map-banner-sub">{[placeMeta(place).label, shortArea(place.address)].filter(Boolean).join(' · ')}</div>
+              {place.notes && <div className="map-banner-note">{place.notes.split('\n')[0]}</div>}
             </div>
+            <span className="map-banner-go" aria-hidden="true"><Icon name="right" size={18} /></span>
+            <button type="button" className="map-banner-x" aria-label="Close" onClick={(e) => { e.stopPropagation(); onSelect(null); }}><Icon name="x" size={14} /></button>
           </div>
-        </div>
-      )}
-      {stay && (
-        <div className="card map-card">
-          <div className="place-emoji">{CATEGORY_META.stay.emoji}</div>
-          <div className="place-main">
-            <div className="item-title">{stay.title}</div>
-            <div className="item-sub">{fmtRange(stay.day, stay.end_day)}{stay.location_name && stay.location_name !== stay.title ? ` · ${stay.location_name}` : ''}</div>
-            <div className="item-foot"><MapLinks p={stay} /></div>
+        )}
+        {stay && (
+          <div className="map-banner">
+            <span className="place-thumb large emoji">{CATEGORY_META.stay.emoji}</span>
+            <div className="map-banner-main">
+              <div className="map-banner-title">{stay.title}</div>
+              <div className="map-banner-sub">{fmtRange(stay.day, stay.end_day)}{stay.location_name && stay.location_name !== stay.title ? ` · ${stay.location_name}` : ''}</div>
+              <div className="map-banner-links"><MapLinks p={stay} /></div>
+            </div>
+            <button type="button" className="map-banner-x" aria-label="Close" onClick={() => onSelect(null)}><Icon name="x" size={14} /></button>
           </div>
-        </div>
-      )}
+        )}
+      </div>
       {unpinned.length > 0 && (
-        <section className="unpinned" aria-label="Not on the map yet">
-          <div className="section-head">
-            <h2 className="section-title">Not on the map yet</h2>
-            <span className="section-meta">{unpinned.length}</span>
-          </div>
-          <p className="muted small unpinned-why">Their Map button searches Google Maps by name, but this map needs an exact pin. Add one from the place’s Google Maps link.</p>
+        // Kept small and closed: most places get a pin automatically; this is only for the odd one out.
+        <details className="unpinned">
+          <summary>{unpinned.length === 1 ? '1 place isn’t' : `${unpinned.length} places aren’t`} on the map yet</summary>
+          <p className="muted small unpinned-why">This map needs an exact pin. Paste the place’s Google Maps link to add one.</p>
           <div className="unpinned-list">
             {unpinned.map((p) => (
               <div key={p.id} className="unpinned-row">
@@ -265,9 +275,117 @@ function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
               </div>
             ))}
           </div>
-        </section>
+        </details>
       )}
     </>
+  );
+}
+
+/** "Jl. Pantai Pererenan No.84, Pererenan (at Further hotel)" → "Pererenan": the last meaningful part of an address. */
+function shortArea(address?: string | null): string {
+  if (!address) return '';
+  const parts = address.split(',').map((x) => x.replace(/\(.*?\)/g, '').trim()).filter((x) => x && !/^\d{5}$/.test(x) && !/^(bali|indonesia|badung|kabupaten|kec\.|kuta (utara|selatan)$)/i.test(x));
+  const area = parts.find((x, i) => i > 0 && !/^(jl|jalan|gg|gang)\b/i.test(x)) ?? parts[0] ?? '';
+  return area.replace(/\s*\d{5}$/, '').slice(0, 40);
+}
+
+/** Cover photo thumbnail if the place has one, otherwise its category emoji. */
+function PlaceThumb({ place, photo, large }: { place: Place; photo?: PlacePhoto; large?: boolean }) {
+  return photo
+    ? <img className={large ? 'place-thumb large' : 'place-thumb'} src={`data:image/jpeg;base64,${photo.thumb}`} alt="" />
+    : <span className={large ? 'place-thumb large emoji' : 'place-thumb emoji'}>{placeMeta(place).emoji}</span>;
+}
+
+/** The full listing: photos, everything we know, and the actions. Edit lives here. */
+function PlaceDetail({ place, onClose, onEdit, onPin, onItinerary }: {
+  place: Place; onClose: () => void; onEdit?: () => void; onPin?: () => void; onItinerary?: () => void;
+}) {
+  const { data, act, backend, toast, offline } = useTrip();
+  const photosOn = data.placePhotos !== undefined;
+  const ids = (data.placePhotos ?? []).filter((x) => x.place_id === place.id).map((x) => x.id).join(',');
+  const [photos, setPhotos] = useState<PlacePhoto[] | null>(null);
+  const [busy, setBusy] = useState('');
+  const picker = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!photosOn || !ids) { setPhotos([]); return; }
+    let live = true;
+    backend.listPlacePhotos(place.id).then((r) => live && setPhotos(r)).catch(() => live && setPhotos([]));
+    return () => { live = false; };
+  }, [place.id, ids, photosOn, backend]);
+  const count = ids ? ids.split(',').length : 0;
+  const meta = placeMeta(place);
+  const source = safeHttpUrl(place.website) ?? safeHttpUrl(place.source_url);
+
+  const save = async (blob: Blob, sourceUrl: string | null) => {
+    const [img, thumb] = await Promise.all([shrinkImage(blob), makeThumb(blob)]);
+    await backend.addPlacePhoto({ trip_id: data.trip.id, place_id: place.id, ...img, thumb, source_url: sourceUrl && safeHttpUrl(sourceUrl) });
+  };
+  const upload = async (list: FileList | null) => {
+    if (!list?.length) return;
+    const room = 6 - count;
+    if (list.length > room) toast(room > 0 ? `Only ${room} more photo${room === 1 ? '' : 's'} fit (6 per place)` : 'This place already has 6 photos');
+    setBusy('Adding…');
+    for (const file of [...list].slice(0, Math.max(0, room))) {
+      try { await save(file, null); } catch (e) { toast(e instanceof Error ? e.message : 'Could not add that photo'); }
+    }
+    if (picker.current) picker.current.value = '';
+    setBusy('');
+  };
+  const fetchPhoto = async () => {
+    if (!source) return;
+    setBusy('Getting photo…');
+    await act(async () => {
+      const { blob, source: from } = await backend.findPhoto(source);
+      await save(blob, from ?? source);
+    }, 'Photo added');
+    setBusy('');
+  };
+  const remove = (ph: PlacePhoto) => confirm('Remove this photo?') && act(() => backend.removePlacePhoto(ph.id), 'Photo removed');
+
+  return (
+    <Sheet title={place.name} onClose={onClose}
+      footer={<>
+        {onItinerary && <button className="btn" onClick={onItinerary}>+ Itinerary</button>}
+        <span className="spacer" />
+        {onEdit && <button className="btn btn-primary" onClick={onEdit}>Edit</button>}
+      </>}>
+      {photosOn && (count > 0 || !offline) && (
+        <div className="photo-strip">
+          {count > 0 && photos === null && <div className="photo-slot loading" />}
+          {photos?.map((ph) => (
+            <figure key={ph.id} className="photo-slot">
+              <img src={`data:${ph.mime};base64,${ph.data}`} alt="" />
+              {!offline && <button type="button" className="shot-remove" aria-label="Remove photo" onClick={() => void remove(ph)}><Icon name="x" size={14} /></button>}
+            </figure>
+          ))}
+          {!offline && count < 6 && (
+            <div className="photo-add">
+              {count === 0 && source && backend.mode === 'cloud' && (
+                <button type="button" className="btn btn-sm" disabled={Boolean(busy)} onClick={() => void fetchPhoto()}>
+                  <Icon name="image" size={16} />{busy === 'Getting photo…' ? busy : `Get photo from ${place.website ? 'website' : 'post'}`}
+                </button>
+              )}
+              <button type="button" className="link-btn" disabled={Boolean(busy)} onClick={() => picker.current?.click()}>
+                {busy === 'Adding…' ? busy : count ? 'Add more photos' : 'Add your own photos'}
+              </button>
+              <input ref={picker} type="file" accept="image/*" multiple hidden onChange={(e) => void upload(e.target.files)} />
+            </div>
+          )}
+        </div>
+      )}
+      <p className="detail-meta"><span>{meta.emoji}</span>{meta.label}{place.address ? ` · ${place.address}` : ''}</p>
+      <div className="item-foot detail-links">
+        <MapLinks p={place} />
+        <SiteLink url={place.website} />
+        <PhoneLinks phone={place.phone} />
+        {safeHttpUrl(place.source_url) && (
+          <a className="post-link" href={safeHttpUrl(place.source_url)!} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Post</a>
+        )}
+      </div>
+      {!hasPin(place) && onPin && <p className="field-hint">Not on the map yet · <button className="link-btn" onClick={onPin}>Add pin</button></p>}
+      {place.notes && <div className="detail-notes">{place.notes}</div>}
+      {place.helper_added && <div className="helper-meta">Added by Claude</div>}
+    </Sheet>
   );
 }
 
