@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient, type User as SbUser } from '@supabase/supabase-js';
 import type { Backend, NewTrip } from './backend';
 import { uuid } from './backend';
-import type { EditableTable, Member, SharedTrip, Trip, TripData, User } from './types';
+import type { EditableTable, InboxFile, Member, SharedTrip, Trip, TripData, User } from './types';
 
 function toUser(u: SbUser | null | undefined): User | null {
   if (!u) return null;
@@ -68,14 +68,15 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       return check(await sb.rpc('join_trip', { p_code: code, p_display_name: displayName })) as string;
     },
     async loadTrip(id) {
-      const [trip, members, travellers, places, items, expenses, inbox] = await Promise.all([
+      const [trip, members, travellers, places, items, expenses, inbox, files] = await Promise.all([
         sb.from('trips').select('*').eq('id', id).single(),
         sb.from('trip_members').select('*').eq('trip_id', id),
         sb.from('travellers').select('*').eq('trip_id', id).order('created_at'),
         sb.from('places').select('*').eq('trip_id', id).order('created_at', { ascending: false }),
         sb.from('items').select('*').eq('trip_id', id),
         sb.from('expenses').select('*').eq('trip_id', id).order('spent_on', { ascending: false }).order('created_at', { ascending: false }),
-        sb.from('inbox_items').select('id,trip_id,url,source,note,caption,status,place_id,created_at').eq('trip_id', id).order('created_at', { ascending: false }),
+        sb.from('inbox_items').select('*').eq('trip_id', id).order('created_at', { ascending: false }),
+        sb.from('inbox_files').select('id,inbox_id,mime').eq('trip_id', id).order('created_at'),
       ]);
       return {
         trip: check(trip),
@@ -86,6 +87,8 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         expenses: (check(expenses) as TripData['expenses']).map((e) => ({ ...e, amount: Number(e.amount) })),
         // Missing table (migration 007 not run yet) or any other problem: hide the inbox rather than fail the trip.
         inbox: inbox.error ? undefined : (inbox.data as TripData['inbox']),
+        // Missing until migration 008 has run.
+        inboxFiles: files.error ? undefined : (files.data as TripData['inboxFiles']),
       } as TripData;
     },
     subscribe(tripId, onChange) {
@@ -106,6 +109,7 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       // The inbox gets its own channel so a missing table can never break the main one.
       const inboxCh = sb.channel(`inbox-${tripId}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'inbox_items', filter: `trip_id=eq.${tripId}` }, debounced)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'inbox_files', filter: `trip_id=eq.${tripId}` }, debounced)
         .subscribe();
       return () => {
         void sb.removeChannel(inboxCh);
@@ -140,6 +144,15 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
     },
     async updateInbox(id, patch) {
       check(await sb.from('inbox_items').update(patch).eq('id', id));
+    },
+    async listInboxFiles(inboxId) {
+      return check(await sb.from('inbox_files').select('id,inbox_id,mime,data').eq('inbox_id', inboxId).order('created_at')) as InboxFile[];
+    },
+    async addInboxFile(f) {
+      check(await sb.from('inbox_files').insert(f));
+    },
+    async removeInboxFile(id) {
+      check(await sb.from('inbox_files').delete().eq('id', id));
     },
     async linkTraveller(travellerId, userId) {
       check(await sb.rpc('link_traveller', { p_traveller: travellerId, p_user: userId }));

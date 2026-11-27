@@ -1,7 +1,7 @@
 import type { Backend, NewTrip } from './backend';
 import { uuid } from './backend';
 import { toShared } from './itinerary';
-import type { EditableTable, Member, Trip, TripData, User } from './types';
+import type { EditableTable, InboxFile, Member, Trip, TripData, User } from './types';
 
 /**
  * Demo backend: everything lives in this browser's storage. Used for the preview build
@@ -15,6 +15,7 @@ interface DB {
   items: TripData['items'];
   expenses: TripData['expenses'];
   inbox?: NonNullable<TripData['inbox']>;
+  inboxFiles?: Array<InboxFile & { trip_id: string; data: string }>;
 }
 
 const KEY = 'tripplanner-demo-db-v1';
@@ -82,8 +83,10 @@ export function createLocalBackend(): Backend {
       if (t.is_example) {
         const at = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
         db.inbox = [...(db.inbox ?? []),
-          { id: uuid(), trip_id: id, url: 'https://www.instagram.com/reel/EXAMPLE1', source: 'instagram', note: 'Example: gym in Canggu', caption: null, status: 'new', place_id: null, created_at: at(2) },
-          { id: uuid(), trip_id: id, url: 'https://www.tiktok.com/@example/video/7000000000000000001', source: 'tiktok', note: 'Example: brunch spot', caption: 'Best smoothie bowls in Berawa (example caption)', status: 'new', place_id: null, created_at: at(20) },
+          { id: uuid(), trip_id: id, url: 'https://www.instagram.com/reel/EXAMPLE1', source: 'instagram', note: 'Example: gym in Canggu', caption: null, status: 'new', place_id: null, created_at: at(2),
+            name: null, address: 'Jl. Example No. 1, Canggu', phone: '+6281200000000', maps_url: null, details: null, needs: null },
+          { id: uuid(), trip_id: id, url: 'https://www.tiktok.com/@example/video/7000000000000000001', source: 'tiktok', note: 'Example: brunch spot', caption: 'Best smoothie bowls in Berawa (example caption)', status: 'new', place_id: null, created_at: at(20),
+            name: null, address: null, phone: null, maps_url: null, details: null, needs: 'Name of the cafe and the address' },
           { id: uuid(), trip_id: id, url: 'https://example.com/bali-beach-clubs', source: 'other', note: null, caption: 'Example: ten beach clubs worth booking', status: 'new', place_id: null, created_at: at(50) },
         ];
       }
@@ -103,6 +106,7 @@ export function createLocalBackend(): Backend {
         items: f(db.items),
         expenses: f(db.expenses).sort((a, b) => (a.spent_on < b.spent_on ? 1 : a.spent_on > b.spent_on ? -1 : 0)),
         inbox: f(db.inbox ?? []).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
+        inboxFiles: f(db.inboxFiles ?? []).map(({ id: fid, inbox_id, mime }) => ({ id: fid, inbox_id, mime })),
       });
     },
     subscribe(_tripId, onChange) {
@@ -150,6 +154,7 @@ export function createLocalBackend(): Backend {
         trips: db.trips.filter((t) => t.id !== id), members: db.members.filter((r) => r.trip_id !== id),
         travellers: db.travellers.filter((r) => r.trip_id !== id), places: db.places.filter((r) => r.trip_id !== id),
         items: db.items.filter((r) => r.trip_id !== id), expenses: db.expenses.filter((r) => r.trip_id !== id),
+        inbox: (db.inbox ?? []).filter((r) => r.trip_id !== id), inboxFiles: (db.inboxFiles ?? []).filter((r) => r.trip_id !== id),
       });
     },
     async updateMember(m, patch) {
@@ -160,6 +165,20 @@ export function createLocalBackend(): Backend {
     async updateInbox(id, patch) {
       const db = load();
       db.inbox = (db.inbox ?? []).map((x) => (x.id === id ? { ...x, ...patch } : x));
+      persist(db);
+    },
+    async listInboxFiles(inboxId) {
+      return structuredClone((load().inboxFiles ?? []).filter((x) => x.inbox_id === inboxId));
+    },
+    async addInboxFile(file) {
+      const db = load();
+      if ((db.inboxFiles ?? []).filter((x) => x.inbox_id === file.inbox_id).length >= 6) throw new Error('Up to 6 screenshots per item.');
+      db.inboxFiles = [...(db.inboxFiles ?? []), { id: uuid(), ...file }];
+      persist(db);
+    },
+    async removeInboxFile(fileId) {
+      const db = load();
+      db.inboxFiles = (db.inboxFiles ?? []).filter((x) => x.id !== fileId);
       persist(db);
     },
     async linkTraveller(travellerId, userId) {

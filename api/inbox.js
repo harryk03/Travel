@@ -1,8 +1,9 @@
 // Share-to-inbox endpoint for the iOS Shortcut.
 // POST { text, note } with "Authorization: Bearer <INBOX_SECRET>". Replies in plain text for the Shortcut to show.
-// Writes only through the inbox_add() database function, using the public Supabase key; no service-role key is needed.
+// Writes only through the inbox_add_details() database function (or inbox_add() before migration 008), using the public Supabase key; no service-role key is needed.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { extractUrl, isUnsafeHost, normalizeUrl, sourceOf } from './_inbox-url.js';
+import { extractDetails } from './_inbox-extract.js';
 
 const MAX_BODY = 4096;
 const reply = (res, status, text) => {
@@ -101,14 +102,22 @@ export default async function handler(req, res) {
   const source = sourceOf(url);
   const p = await preview(url, source);
 
+  const d = extractDetails(String(body.text ?? ''), p.caption ?? null, url);
+  const rpc = (fn, args) => fetch(`${base.replace(/\/$/, '')}/rest/v1/rpc/${fn}`, {
+    method: 'POST',
+    signal: AbortSignal.timeout(8000),
+    headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  const common = { p_trip: tripId, p_token: given, p_url: url, p_source: source, p_note: note || null, p_caption: p.caption ?? null };
+
   let result;
   try {
-    const r = await fetch(`${base.replace(/\/$/, '')}/rest/v1/rpc/inbox_add`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(8000),
-      headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ p_trip: tripId, p_token: given, p_url: url, p_source: source, p_note: note || null, p_caption: p.caption ?? null, p_thumb: p.thumb ?? null }),
-    });
+    let r = await rpc('inbox_add_details', { ...common, p_name: d.name, p_address: d.address, p_phone: d.phone, p_maps_url: d.maps_url });
+    // Details are a bonus: if the database rejects one, save the link without them.
+    if (r.status === 400) r = await rpc('inbox_add_details', { ...common, p_name: null, p_address: null, p_phone: null, p_maps_url: null });
+    // Before migration 008 the function doesn't exist yet: save the link the old way.
+    if (r.status === 404) r = await rpc('inbox_add', { ...common, p_thumb: p.thumb ?? null });
     if (!r.ok) return reply(res, 502, 'Could not save to Trip HQ, try again');
     result = await r.json();
   } catch {

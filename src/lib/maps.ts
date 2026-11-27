@@ -49,6 +49,18 @@ export function parseMapsUrl(input: string): ParsedPlace | null {
   const result: ParsedPlace = { name: null, lat: null, lng: null, url, isShortLink: SHORT_HOSTS.includes(u.hostname.toLowerCase()) };
   if (result.isShortLink) return result;
 
+  // Apple Maps: maps.apple.com/?q=Name&ll=lat,lng (or /place?name=…&coordinate=lat,lng)
+  if (u.hostname.toLowerCase() === 'maps.apple.com') {
+    const name = u.searchParams.get('name') ?? u.searchParams.get('q');
+    if (name && !/^-?\d/.test(name)) result.name = name.trim();
+    const ll = (u.searchParams.get('coordinate') ?? u.searchParams.get('ll') ?? '').match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+    if (ll && validCoord(parseFloat(ll[1]), parseFloat(ll[2]))) {
+      result.lat = parseFloat(ll[1]);
+      result.lng = parseFloat(ll[2]);
+    }
+    return result;
+  }
+
   const path = u.pathname;
   const placeMatch = path.match(/\/maps\/place\/([^/@]+)/);
   if (placeMatch) result.name = plusDecode(placeMatch[1]);

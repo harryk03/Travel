@@ -45,6 +45,10 @@ export interface Place {
   notes: string | null;
   /** The Instagram/TikTok post this place came from. Members only. */
   source_url?: string | null;
+  /** Phone or WhatsApp number (migration 008). Members only. */
+  phone?: string | null;
+  /** Added by the Claude helper rather than a person (migration 008). */
+  helper_added?: boolean;
 }
 
 export interface Item {
@@ -105,6 +109,21 @@ export interface InboxItem {
   status: 'new' | 'added' | 'dismissed';
   place_id: string | null;
   created_at: string;
+  // Migration 008: details pulled from what was shared, what you found, and what the helper still needs.
+  name?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  maps_url?: string | null;
+  details?: string | null;
+  needs?: string | null;
+}
+
+/** A screenshot attached to an inbox item. `data` is base64, loaded only when needed. */
+export interface InboxFile {
+  id: string;
+  inbox_id: string;
+  mime: string;
+  data?: string;
 }
 
 export interface TripData {
@@ -116,6 +135,8 @@ export interface TripData {
   expenses: Expense[];
   /** Shared-post inbox. Undefined when the database doesn't have it yet (migration 007). */
   inbox?: InboxItem[];
+  /** Screenshot ids per inbox item. Undefined until migration 008 has run (hides the details features). */
+  inboxFiles?: InboxFile[];
 }
 
 /** What external friends see. Mirrors get_shared_trip() in supabase/schema.sql. */
