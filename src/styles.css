@@ -466,3 +466,11 @@ button.status:hover { color: var(--text); }
 .unpinned-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pin-steps { margin: 0 0 16px; padding-left: 20px; color: var(--text2); font-size: 14px; line-height: 24px; }
 .pin-steps a { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }
+
+/* Custom place category */
+.custom-cat { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 0 12px; margin: -4px 0 8px; }
+.custom-cat .quick-emoji { grid-column: 1 / -1; }
+.emoji-input { text-align: center; font-size: 20px; }
+.quick-emoji { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 12px; }
+.quick-emoji button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 20px; line-height: 1; cursor: pointer; }
+.quick-emoji button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }

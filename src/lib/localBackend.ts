@@ -107,6 +107,7 @@ export function createLocalBackend(): Backend {
         expenses: f(db.expenses).sort((a, b) => (a.spent_on < b.spent_on ? 1 : a.spent_on > b.spent_on ? -1 : 0)),
         inbox: f(db.inbox ?? []).sort((a, b) => (a.created_at < b.created_at ? 1 : -1)),
         inboxFiles: f(db.inboxFiles ?? []).map(({ id: fid, inbox_id, mime }) => ({ id: fid, inbox_id, mime })),
+        placeExtras: true,
       });
     },
     subscribe(_tripId, onChange) {

@@ -5,13 +5,14 @@
 //   GET  /api/helper                     open inbox items + saved place names
 //   GET  /api/helper?files=<inbox id>    screenshots on one inbox item (base64)
 //   POST /api/helper {action:"add", inbox, name, category, address, maps_url, lat, lng, phone, notes}
+//        optional website, and category "custom" with custom_emoji + custom_label (migration 010)
 //        add keep_open:true to add one of several places from the same item (migration 009); the last add ticks it off
 //   POST /api/helper {action:"update", place, ...same fields; blanks are left as they are}
 //   POST /api/helper {action:"flag", inbox, needs}
 
 const MAX_BODY = 16_384;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const CATEGORIES = ['gym', 'cafe', 'restaurant', 'stay', 'beach_club', 'nightlife', 'activity', 'other'];
+const CATEGORIES = ['gym', 'cafe', 'restaurant', 'stay', 'beach_club', 'nightlife', 'activity', 'spa', 'other', 'custom'];
 
 const send = (res, status, body) => {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -26,9 +27,18 @@ function placeArgs(b) {
   if (category && !CATEGORIES.includes(category)) throw new Error(`category must be one of ${CATEGORIES.join(', ')}`);
   const maps = str(b.maps_url, 2048);
   if (maps && !/^https?:\/\//i.test(maps)) throw new Error('maps_url must be an http(s) link');
+  const website = str(b.website, 2048);
+  if (website && !/^https?:\/\//i.test(website)) throw new Error('website must be an http(s) link');
+  const emoji = str(b.custom_emoji, 16);
+  const label = str(b.custom_label, 40);
+  if (category === 'custom' && (!emoji || !label)) throw new Error('a custom category needs custom_emoji and custom_label');
   return {
     p_name: str(b.name, 200), p_category: category, p_address: str(b.address, 300), p_maps_url: maps,
     p_lat: num(b.lat), p_lng: num(b.lng), p_phone: str(b.phone, 24), p_notes: str(b.notes, 2000),
+    // Migration 010 inputs: only sent when given, so calls without them work on either version.
+    ...(website ? { p_website: website } : {}),
+    ...(emoji ? { p_custom_emoji: emoji } : {}),
+    ...(label ? { p_custom_label: label } : {}),
   };
 }
 

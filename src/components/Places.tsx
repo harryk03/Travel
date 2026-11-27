@@ -3,12 +3,15 @@ import { decodeEntities } from '../../api/_inbox-extract.js';
 import { fmtDay, fmtRange } from '../lib/dates';
 import { fmtPhone, shrinkImage, validPhone, waDigits } from '../lib/images';
 import { extractUrl, isGoogleMapsUrl, parseMapsUrl, resolveShortLink, safeHttpUrl } from '../lib/maps';
-import { CATEGORY_META, type InboxFile, type InboxItem, type Item, type Place, type PlaceCategory } from '../lib/types';
+import { CATEGORY_META, placeGroup, placeMeta, type InboxFile, type InboxItem, type Item, type Place, type PlaceCategory } from '../lib/types';
 import { Empty, Field, Icon, Segmented, Sheet, useTrip } from '../ui';
 import type { Pin } from './PlacesMap';
 import { MapLinks } from './ItemCard';
 
-const CATS = Object.keys(CATEGORY_META) as PlaceCategory[];
+// Built-in categories you can pick (custom ones come from your own places). Spa needs migration 010.
+const CATS = (Object.keys(CATEGORY_META) as PlaceCategory[]).filter((c) => c !== 'custom');
+const pickable = (extras: boolean) => CATS.filter((c) => extras || c !== 'spa');
+const QUICK_EMOJI = ['🎾', '🧘', '🏄', '🛍️', '🍹', '🎵', '📸', '🛵', '🍦', '🌅'];
 // Leaflet and the map styles only download when someone opens the map.
 const PlacesMap = lazy(() => import('./PlacesMap'));
 const VIEW_KEY = 'triphq-places-view';
@@ -17,9 +20,10 @@ function savedView(): 'list' | 'map' {
   try { return localStorage.getItem(VIEW_KEY) === 'map' ? 'map' : 'list'; } catch { return 'list'; }
 }
 
-function guessCategory(name: string): PlaceCategory {
+function guessCategory(name: string, extras = false): PlaceCategory {
   const n = name.toLowerCase();
   if (/gym|fitness|crossfit|yoga/.test(n)) return 'gym';
+  if (extras && /\bspa\b|massage|sauna|reflexology|facial|wellness/.test(n)) return 'spa';
   if (/caf[eé]|coffee|espresso|roast/.test(n)) return 'cafe';
   if (/beach club|beachclub/.test(n)) return 'beach_club';
   if (/bar|club|lounge|pub/.test(n)) return 'nightlife';
@@ -31,7 +35,7 @@ function guessCategory(name: string): PlaceCategory {
 
 export function Places() {
   const { data, editItem, offline, backend, act } = useTrip();
-  const [filter, setFilter] = useState<PlaceCategory | 'all'>('all');
+  const [filter, setFilter] = useState<string>('all');
   const [paste, setPaste] = useState('');
   const [busy, setBusy] = useState(false);
   const [hint, setHint] = useState('');
@@ -60,7 +64,7 @@ export function Places() {
     setFromInbox(x.id);
     setForm({
       name: name || parsed?.name || '',
-      category: guessCategory(`${name} ${x.note ?? ''} ${x.caption ?? ''} ${x.details ?? ''}`),
+      category: guessCategory(`${name} ${x.note ?? ''} ${x.caption ?? ''} ${x.details ?? ''}`, Boolean(data.placeExtras)),
       address: x.address ?? null, phone: x.phone ?? null, maps_url: x.maps_url ?? null,
       lat: parsed?.lat ?? null, lng: parsed?.lng ?? null,
       notes: x.name && x.note && x.note !== x.name ? x.note : null,
@@ -70,8 +74,19 @@ export function Places() {
   const setStatus = (x: InboxItem, status: InboxItem['status']) =>
     act(() => backend.updateInbox(x.id, { status }), status === 'dismissed' ? 'Dismissed' : 'Back in the inbox');
 
-  const counts = CATS.reduce((m, c) => ({ ...m, [c]: data.places.filter((p) => p.category === c).length }), {} as Record<PlaceCategory, number>);
-  const shown = data.places.filter((p) => filter === 'all' || p.category === filter);
+  // One chip per category in use: built-ins in their usual order, then your custom ones by name.
+  const groups = useMemo(() => {
+    const m = new Map<string, { emoji: string; label: string; count: number }>();
+    for (const c of CATS) m.set(c, { ...CATEGORY_META[c], count: 0 });
+    for (const p of data.places) {
+      const key = placeGroup(p);
+      const g = m.get(key) ?? { ...placeMeta(p), count: 0 };
+      g.count += 1;
+      m.set(key, g);
+    }
+    return [...m.entries()].filter(([, g]) => g.count > 0);
+  }, [data.places]);
+  const shown = data.places.filter((p) => filter === 'all' || placeGroup(p) === filter);
 
   const fromLink = async () => {
     const url = extractUrl(paste);
@@ -87,13 +102,13 @@ export function Places() {
     const name = parsed?.name ?? '';
     if (!isGoogleMapsUrl(url)) setHint('Not a Google Maps link, but you can still save it.');
     else if (!name && parsed?.lat == null) setHint('Couldn’t read details from that link. Fill in the name below.');
-    setForm({ name, maps_url: url, lat: parsed?.lat ?? null, lng: parsed?.lng ?? null, category: guessCategory(name) });
+    setForm({ name, maps_url: url, lat: parsed?.lat ?? null, lng: parsed?.lng ?? null, category: guessCategory(name, Boolean(data.placeExtras)) });
     setPaste('');
   };
 
   const addToItinerary = (p: Place) =>
     editItem({
-      title: p.name, kind: CATEGORY_META[p.category].kind, location_name: p.name, address: p.address,
+      title: p.name, kind: placeMeta(p).kind, location_name: p.name, address: p.address,
       maps_url: p.maps_url, lat: p.lat, lng: p.lng, place_id: p.id,
     });
 
@@ -141,9 +156,9 @@ export function Places() {
 
       <div className="chips" role="tablist">
         <button className={filter === 'all' ? 'chip on' : 'chip'} onClick={() => setFilter('all')}>All {data.places.length}</button>
-        {CATS.filter((c) => counts[c] > 0).map((c) => (
-          <button key={c} className={filter === c ? 'chip on' : 'chip'} onClick={() => setFilter(c)}>
-            {CATEGORY_META[c].emoji} {CATEGORY_META[c].label} {counts[c]}
+        {groups.map(([key, g]) => (
+          <button key={key} className={filter === key ? 'chip on' : 'chip'} onClick={() => setFilter(key)}>
+            {g.emoji} {g.label} {g.count}
           </button>
         ))}
       </div>
@@ -159,7 +174,7 @@ export function Places() {
         <div className="place-grid">
           {shown.map((p) => (
             <div key={p.id} className="card place-card" onClick={offline ? undefined : () => setForm(p)} role="button" tabIndex={0}>
-              <div className="place-emoji">{CATEGORY_META[p.category].emoji}</div>
+              <div className="place-emoji">{placeMeta(p).emoji}</div>
               <div className="place-main">
                 <div className="item-title">{p.name}</div>
                 {p.address && <div className="item-sub">{p.address}</div>}
@@ -167,6 +182,7 @@ export function Places() {
                 {p.helper_added && <div className="helper-meta">Added by Claude</div>}
                 <div className="item-foot" onClick={(e) => e.stopPropagation()}>
                   <MapLinks p={p} />
+                  <SiteLink url={p.website} />
                   <PhoneLinks phone={p.phone} />
                   {safeHttpUrl(p.source_url) && (
                     <a className="post-link" href={safeHttpUrl(p.source_url)!} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Post</a>
@@ -193,7 +209,7 @@ function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
 }) {
   const { toast } = useTrip();
   const pins = useMemo<Pin[]>(() => [
-    ...places.filter(hasPin).map((p) => ({ id: p.id, lat: p.lat!, lng: p.lng!, emoji: CATEGORY_META[p.category].emoji, label: p.name })),
+    ...places.filter(hasPin).map((p) => ({ id: p.id, lat: p.lat!, lng: p.lng!, emoji: placeMeta(p).emoji, label: p.name })),
     ...stays.map((i) => ({ id: `stay:${i.id}`, lat: i.lat!, lng: i.lng!, emoji: CATEGORY_META.stay.emoji, label: i.title })),
   ], [places, stays]);
   const unpinned = places.filter((p) => !hasPin(p));
@@ -206,13 +222,14 @@ function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
       </Suspense>
       {place && (
         <div className="card map-card">
-          <div className="place-emoji">{CATEGORY_META[place.category].emoji}</div>
+          <div className="place-emoji">{placeMeta(place).emoji}</div>
           <div className="place-main">
             <div className="item-title">{place.name}</div>
             {place.address && <div className="item-sub">{place.address}</div>}
             {place.notes && <div className="item-notes map-card-notes">{place.notes}</div>}
             <div className="item-foot">
               <MapLinks p={place} />
+              <SiteLink url={place.website} />
               <PhoneLinks phone={place.phone} />
               {safeHttpUrl(place.source_url) && (
                 <a className="post-link" href={safeHttpUrl(place.source_url)!} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Post</a>
@@ -241,7 +258,7 @@ function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
           <div className="unpinned-list">
             {unpinned.map((p) => (
               <div key={p.id} className="unpinned-row">
-                <span className="unpinned-emoji">{CATEGORY_META[p.category].emoji}</span>
+                <span className="unpinned-emoji">{placeMeta(p).emoji}</span>
                 <span className="unpinned-name">{p.name}</span>
                 {onPin && <button className="btn btn-sm" onClick={() => onPin(p)}>Add pin</button>}
               </div>
@@ -288,6 +305,36 @@ function PinSheet({ place, onClose }: { place: Place; onClose: () => void }) {
       {hint && <p className="field-hint">{hint}</p>}
     </Sheet>
   );
+}
+
+/** The place's own website, shown as its domain. */
+function SiteLink({ url }: { url?: string | null }) {
+  const safe = safeHttpUrl(url);
+  if (!safe) return null;
+  return (
+    <span className="map-links" onClick={(e) => e.stopPropagation()}>
+      <a href={safe} target="_blank" rel="noreferrer"><Icon name="link" size={16} />Website</a>
+    </span>
+  );
+}
+
+/** "bendbali.com" → "https://bendbali.com/". Null if it can't be a web address. */
+function normalizeWebsite(input: string): string | null {
+  const t = input.trim();
+  if (!t) return null;
+  const withScheme = /^https?:\/\//i.test(t) ? t : `https://${t}`;
+  const safe = safeHttpUrl(withScheme);
+  try {
+    return safe && new URL(safe).hostname.includes('.') ? safe : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Plain check that the text is one short emoji-ish token (what the database allows: 1–16 characters). */
+function validEmoji(e: string): boolean {
+  const t = e.trim();
+  return t.length >= 1 && t.length <= 16 && /\p{Extended_Pictographic}|\p{Regional_Indicator}/u.test(t) && !/\s/.test(t);
 }
 
 function PhoneLinks({ phone }: { phone?: string | null }) {
@@ -407,8 +454,21 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
   const [f, setF] = useState({
     name: initial.name ?? '', category: initial.category ?? ('other' as PlaceCategory), address: initial.address ?? '',
     maps_url: initial.maps_url ?? '', notes: initial.notes ?? '', phone: initial.phone ? fmtPhone(initial.phone) : '',
+    website: initial.website ?? '', custom_emoji: initial.custom_emoji ?? '', custom_label: initial.custom_label ?? '',
   });
   const phoneOk = !f.phone.trim() || validPhone(f.phone);
+  // Websites, Spa and custom categories need migration 010; hidden until it has run.
+  const extras = Boolean(data.placeExtras);
+  const website = normalizeWebsite(f.website);
+  const websiteOk = !f.website.trim() || Boolean(website);
+  const isCustom = f.category === 'custom';
+  const customOk = !isCustom || (validEmoji(f.custom_emoji) && f.custom_label.trim().length >= 1 && f.custom_label.trim().length <= 40);
+  // Custom categories already used in this trip, so they can be picked again with one tap.
+  const customs = useMemo(() => {
+    const seen = new Map<string, { emoji: string; label: string }>();
+    for (const p of data.places) if (p.category === 'custom' && p.custom_emoji && p.custom_label) seen.set(p.custom_label.trim().toLowerCase(), { emoji: p.custom_emoji, label: p.custom_label.trim() });
+    return [...seen.values()];
+  }, [data.places]);
   // The phone column arrives with migration 008 (inboxFiles is only loaded once it exists).
   const hasPhone = data.inboxFiles !== undefined || Boolean(initial.phone);
   const save = async () => {
@@ -425,6 +485,9 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
       ...(initial.source_url ? { source_url: safeHttpUrl(initial.source_url) } : {}),
       // Same for phone (migration 008): only sent when there is one, or to clear one.
       ...(f.phone.trim() || initial.phone ? { phone: f.phone.trim() || null } : {}),
+      // Same for the migration 010 fields.
+      ...(website || initial.website ? { website } : {}),
+      ...(isCustom || initial.custom_emoji ? { custom_emoji: isCustom ? f.custom_emoji.trim() : null, custom_label: isCustom ? f.custom_label.trim() : null } : {}),
     };
     const ok = await act(async () => {
       const placeId = await backend.save('places', row);
@@ -438,7 +501,7 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
         {onRemove && <button className="btn btn-danger-ghost" onClick={() => confirm('Remove this place?') && onRemove()}>Remove</button>}
         <span className="spacer" />
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" disabled={!f.name.trim() || !phoneOk} onClick={save}>Save</button>
+        <button className="btn btn-primary" disabled={!f.name.trim() || !phoneOk || !websiteOk || !customOk} onClick={save}>Save</button>
       </>}>
       {inboxId && (initial.source_url ? (
         <p className="field-hint from-post">From a saved post · <a href={safeHttpUrl(initial.source_url) ?? undefined} target="_blank" rel="noreferrer">open it</a> to check the details{initial.maps_url ? '' : ', then paste the Google Maps link below'}</p>
@@ -448,19 +511,49 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
       <Field label="Name"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus={!f.name} placeholder="e.g. La Brisa" /></Field>
       <Field label="Category" group>
         <div className="kind-picker">
-          {CATS.map((c) => (
+          {pickable(extras).map((c) => (
             <button key={c} type="button" className={f.category === c ? 'on' : ''} onClick={() => setF({ ...f, category: c })}>
               <span>{CATEGORY_META[c].emoji}</span>{CATEGORY_META[c].label}
             </button>
           ))}
+          {extras && customs.map((c) => (
+            <button key={c.label} type="button" className={isCustom && f.custom_label.trim().toLowerCase() === c.label.toLowerCase() ? 'on' : ''}
+              onClick={() => setF({ ...f, category: 'custom', custom_emoji: c.emoji, custom_label: c.label })}>
+              <span>{c.emoji}</span>{c.label}
+            </button>
+          ))}
+          {extras && (
+            <button type="button" className={isCustom && !customs.some((c) => c.label.toLowerCase() === f.custom_label.trim().toLowerCase()) ? 'on' : ''}
+              onClick={() => setF({ ...f, category: 'custom', custom_emoji: '', custom_label: '' })}>
+              <span>＋</span>Custom
+            </button>
+          )}
         </div>
       </Field>
+      {isCustom && (
+        <div className="custom-cat">
+          <Field label="Emoji" hint={f.custom_emoji && !validEmoji(f.custom_emoji) ? 'One emoji, from the emoji keyboard' : undefined}>
+            <input className="emoji-input" value={f.custom_emoji} maxLength={16} onChange={(e) => setF({ ...f, custom_emoji: e.target.value.trim() })} placeholder="🎾" aria-describedby="quick-emoji" />
+          </Field>
+          <Field label="Category name"><input value={f.custom_label} maxLength={40} onChange={(e) => setF({ ...f, custom_label: e.target.value })} placeholder="e.g. Padel" /></Field>
+          <div className="quick-emoji" id="quick-emoji" role="group" aria-label="Quick emoji">
+            {QUICK_EMOJI.map((e) => (
+              <button key={e} type="button" className={f.custom_emoji === e ? 'on' : ''} onClick={() => setF({ ...f, custom_emoji: e })} aria-label={`Use ${e}`}>{e}</button>
+            ))}
+          </div>
+        </div>
+      )}
       <Field label="Area or address (optional)"><input value={f.address} onChange={(e) => setF({ ...f, address: e.target.value })} placeholder="e.g. Canggu" /></Field>
       <Field label="Google Maps link (optional)"><input value={f.maps_url} onChange={(e) => setF({ ...f, maps_url: e.target.value })} inputMode="url" /></Field>
       {initial.lat != null && <p className="field-hint">Pin found: {initial.lat?.toFixed(5)}, {initial.lng?.toFixed(5)}</p>}
       {hasPhone && (
         <Field label="Phone or WhatsApp (optional)" hint={phoneOk ? undefined : 'Numbers only, e.g. +62 821 3573 2415'}>
           <input value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} inputMode="tel" placeholder="+62 …" />
+        </Field>
+      )}
+      {(extras || initial.website) && (
+        <Field label="Website (optional)" hint={websiteOk ? undefined : 'A web address, e.g. bendbali.com'}>
+          <input value={f.website} onChange={(e) => setF({ ...f, website: e.target.value })} inputMode="url" placeholder="e.g. bendbali.com" autoCapitalize="off" autoCorrect="off" />
         </Field>
       )}
       <Field label="Notes (optional)"><textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} /></Field>

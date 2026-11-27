@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 import { fmtDay, fmtTime } from '../lib/dates';
-import { directionsUrl, hasLocation, openInMapsUrl, safeHttpUrl } from '../lib/maps';
+import { hasLocation, openInMapsUrl, safeHttpUrl } from '../lib/maps';
 import { type Item, type SharedItem } from '../lib/types';
 import { Ctx, Icon, StatusPill } from '../ui';
 
@@ -24,11 +24,10 @@ export function timeLabel(i: Item | SharedItem): string {
 export function MapLinks({ p }: { p: Parameters<typeof openInMapsUrl>[0] }) {
   if (!hasLocation(p)) return null;
   const open = openInMapsUrl(p);
-  const dir = directionsUrl(p);
+  // Just "Map": it opens the place in Google Maps, where Directions is one tap away.
   return (
     <span className="map-links" onClick={(e) => e.stopPropagation()}>
       {open && <a href={open} target="_blank" rel="noreferrer"><Icon name="map" size={16} />Map</a>}
-      {dir && <a href={dir} target="_blank" rel="noreferrer"><Icon name="directions" size={16} />Directions</a>}
     </span>
   );
 }

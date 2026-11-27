@@ -1,7 +1,7 @@
 export type Role = 'owner' | 'member';
 export type Status = 'confirmed' | 'tentative';
 export type ItemKind = 'flight' | 'stay' | 'activity' | 'event' | 'food' | 'transport' | 'other';
-export type PlaceCategory = 'gym' | 'cafe' | 'restaurant' | 'stay' | 'beach_club' | 'nightlife' | 'activity' | 'other';
+export type PlaceCategory = 'gym' | 'cafe' | 'restaurant' | 'stay' | 'beach_club' | 'nightlife' | 'activity' | 'spa' | 'other' | 'custom';
 export type Currency = 'AUD' | 'IDR';
 
 export interface Trip {
@@ -49,6 +49,10 @@ export interface Place {
   phone?: string | null;
   /** Added by the Claude helper rather than a person (migration 008). */
   helper_added?: boolean;
+  /** Migration 010: the place's own website, and a custom category (category 'custom'). */
+  website?: string | null;
+  custom_emoji?: string | null;
+  custom_label?: string | null;
 }
 
 export interface Item {
@@ -137,6 +141,8 @@ export interface TripData {
   inbox?: InboxItem[];
   /** Screenshot ids per inbox item. Undefined until migration 008 has run (hides the details features). */
   inboxFiles?: InboxFile[];
+  /** True once migration 010 has run: websites, the Spa category and custom categories can be saved. */
+  placeExtras?: boolean;
 }
 
 /** What external friends see. Mirrors get_shared_trip() in supabase/schema.sql. */
@@ -172,6 +178,19 @@ export const CATEGORY_META: Record<PlaceCategory, { emoji: string; label: string
   nightlife: { emoji: '🍸', label: 'Nightlife', kind: 'event' },
   activity: { emoji: '🌋', label: 'Activities', kind: 'activity' },
   gym: { emoji: '🏋️', label: 'Gyms', kind: 'activity' },
+  spa: { emoji: '💆', label: 'Spas', kind: 'activity' },
   stay: { emoji: '🏨', label: 'Accommodation', kind: 'stay' },
   other: { emoji: '📍', label: 'Other', kind: 'other' },
+  custom: { emoji: '⭐', label: 'Custom', kind: 'activity' },
 };
+
+/** Emoji, name and itinerary kind for a place, using its custom category when it has one. */
+export function placeMeta(p: Pick<Place, 'category' | 'custom_emoji' | 'custom_label'>): { emoji: string; label: string; kind: ItemKind } {
+  if (p.category === 'custom' && p.custom_emoji && p.custom_label) return { emoji: p.custom_emoji, label: p.custom_label, kind: 'activity' };
+  return CATEGORY_META[p.category] ?? CATEGORY_META.other;
+}
+
+/** Filter key for the category chips: a built-in category, or "custom:<name>" for each custom category. */
+export function placeGroup(p: Pick<Place, 'category' | 'custom_label'>): string {
+  return p.category === 'custom' && p.custom_label ? `custom:${p.custom_label.trim().toLowerCase()}` : p.category;
+}

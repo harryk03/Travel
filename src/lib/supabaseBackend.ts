@@ -68,7 +68,7 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
       return check(await sb.rpc('join_trip', { p_code: code, p_display_name: displayName })) as string;
     },
     async loadTrip(id) {
-      const [trip, members, travellers, places, items, expenses, inbox, files] = await Promise.all([
+      const [trip, members, travellers, places, items, expenses, inbox, files, extras] = await Promise.all([
         sb.from('trips').select('*').eq('id', id).single(),
         sb.from('trip_members').select('*').eq('trip_id', id),
         sb.from('travellers').select('*').eq('trip_id', id).order('created_at'),
@@ -77,6 +77,7 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         sb.from('expenses').select('*').eq('trip_id', id).order('spent_on', { ascending: false }).order('created_at', { ascending: false }),
         sb.from('inbox_items').select('*').eq('trip_id', id).order('created_at', { ascending: false }),
         sb.from('inbox_files').select('id,inbox_id,mime').eq('trip_id', id).order('created_at'),
+        sb.from('places').select('website').eq('trip_id', id).limit(1),
       ]);
       return {
         trip: check(trip),
@@ -89,6 +90,8 @@ export function createSupabaseBackend(url: string, anonKey: string): Backend {
         inbox: inbox.error ? undefined : (inbox.data as TripData['inbox']),
         // Missing until migration 008 has run.
         inboxFiles: files.error ? undefined : (files.data as TripData['inboxFiles']),
+        // Errors until migration 010 adds the website column.
+        placeExtras: !extras.error,
       } as TripData;
     },
     subscribe(tripId, onChange) {
