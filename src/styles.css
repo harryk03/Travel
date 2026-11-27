@@ -436,3 +436,33 @@ button.status:hover { color: var(--text); }
 .shot-add { aspect-ratio: 3 / 4; border-radius: 8px; border: 1px dashed var(--line); background: transparent; color: var(--text2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; font: inherit; font-size: 13px; cursor: pointer; }
 .shot-add:hover { color: var(--accent); border-color: var(--accent); }
 .shot-add:disabled { opacity: .6; cursor: default; }
+
+/* Places map */
+.view-row { margin-top: 24px; display: flex; }
+.view-row + .chips { margin-top: 12px; }
+.map-wrap { position: relative; }
+.map { height: clamp(360px, 62dvh, 720px); border-radius: 12px; border: 1px solid var(--line); overflow: hidden; background: var(--raised); }
+.map-loading { display: grid; place-items: center; color: var(--muted); font-size: 13px; }
+.map .maplibregl-ctrl-group { background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); border-radius: 10px; overflow: hidden; }
+.map .maplibregl-ctrl-group button { width: 36px; height: 36px; }
+.map .maplibregl-ctrl-group button + button { border-top: 1px solid var(--line); }
+:root[data-theme="dark"] .map .maplibregl-ctrl-icon { filter: invert(1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .map .maplibregl-ctrl-icon { filter: invert(1); } }
+.map .maplibregl-ctrl-attrib { font-size: 10px; }
+.map-locate { position: absolute; right: 10px; bottom: 52px; z-index: 2; width: 40px; height: 40px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); color: var(--text); display: grid; place-items: center; box-shadow: var(--shadow); cursor: pointer; }
+.map-locate:hover { color: var(--accent); }
+.me-dot { width: 16px; height: 16px; border-radius: 8px; background: #0a84ff; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, .2); }
+.pin { position: relative; width: 32px; height: 32px; padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+.pin-dot { width: 32px; height: 32px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 1px 4px rgba(0, 0, 0, .25); display: grid; place-items: center; font-size: 16px; line-height: 1; transition: transform .15s var(--ease); }
+.pin.on .pin-dot { transform: scale(1.18); border: 2px solid var(--accent); }
+.pin-label { position: absolute; left: 36px; top: 50%; transform: translateY(-50%); white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 600; line-height: 16px; color: var(--text); text-align: left;
+  text-shadow: 0 0 2px var(--bg), 0 0 2px var(--bg), 0 0 3px var(--bg); pointer-events: none; display: none; }
+.map.show-labels .pin-label, .pin.on .pin-label { display: block; }
+.map-card { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 12px; margin-top: 12px; }
+.map-card-notes { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.unpinned { margin-top: 24px; }
+.unpinned-list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.unpinned-row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.unpinned-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pin-steps { margin: 0 0 16px; padding-left: 20px; color: var(--text2); font-size: 14px; line-height: 24px; }
+.pin-steps a { color: var(--accent); display: inline-flex; align-items: center; gap: 4px; }

@@ -1,13 +1,21 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { decodeEntities } from '../../api/_inbox-extract.js';
-import { fmtDay } from '../lib/dates';
+import { fmtDay, fmtRange } from '../lib/dates';
 import { fmtPhone, shrinkImage, validPhone, waDigits } from '../lib/images';
 import { extractUrl, isGoogleMapsUrl, parseMapsUrl, resolveShortLink, safeHttpUrl } from '../lib/maps';
-import { CATEGORY_META, type InboxFile, type InboxItem, type Place, type PlaceCategory } from '../lib/types';
-import { Empty, Field, Icon, Sheet, useTrip } from '../ui';
+import { CATEGORY_META, type InboxFile, type InboxItem, type Item, type Place, type PlaceCategory } from '../lib/types';
+import { Empty, Field, Icon, Segmented, Sheet, useTrip } from '../ui';
+import type { Pin } from './PlacesMap';
 import { MapLinks } from './ItemCard';
 
 const CATS = Object.keys(CATEGORY_META) as PlaceCategory[];
+// Leaflet and the map styles only download when someone opens the map.
+const PlacesMap = lazy(() => import('./PlacesMap'));
+const VIEW_KEY = 'triphq-places-view';
+const hasPin = (x: { lat: number | null; lng: number | null }) => x.lat != null && x.lng != null;
+function savedView(): 'list' | 'map' {
+  try { return localStorage.getItem(VIEW_KEY) === 'map' ? 'map' : 'list'; } catch { return 'list'; }
+}
 
 function guessCategory(name: string): PlaceCategory {
   const n = name.toLowerCase();
@@ -30,6 +38,10 @@ export function Places() {
   const [form, setForm] = useState<Partial<Place> | null>(null);
   const [fromInbox, setFromInbox] = useState<string | null>(null);
   const [showDismissed, setShowDismissed] = useState(false);
+  const [view, setViewState] = useState<'list' | 'map'>(savedView);
+  const setView = (v: 'list' | 'map') => { setViewState(v); try { localStorage.setItem(VIEW_KEY, v); } catch { /* not saved */ } };
+  const [selected, setSelected] = useState<string | null>(null);
+  const [pinFor, setPinFor] = useState<Place | null>(null);
   const inbox = data.inbox;
   const fresh = inbox?.filter((x) => x.status === 'new') ?? [];
   const dismissed = inbox?.filter((x) => x.status === 'dismissed') ?? [];
@@ -122,6 +134,11 @@ export function Places() {
         </button>
       )}
 
+      <div className="view-row">
+        <Segmented value={view} onChange={(v) => { setView(v); setSelected(null); }}
+          options={[{ value: 'list', label: 'List' }, { value: 'map', label: 'Map' }]} />
+      </div>
+
       <div className="chips" role="tablist">
         <button className={filter === 'all' ? 'chip on' : 'chip'} onClick={() => setFilter('all')}>All {data.places.length}</button>
         {CATS.filter((c) => counts[c] > 0).map((c) => (
@@ -131,7 +148,10 @@ export function Places() {
         ))}
       </div>
 
-      {shown.length === 0 ? (
+      {view === 'map' ? (
+        <MapView places={shown} stays={filter === 'all' || filter === 'stay' ? data.items.filter((i) => i.kind === 'stay' && hasPin(i)) : []}
+          selected={selected} onSelect={setSelected} onEdit={offline ? undefined : setForm} onPin={offline ? undefined : setPinFor} />
+      ) : shown.length === 0 ? (
         <Empty emoji="📍" title="No places saved yet">
           <p className="muted small">In Google Maps tap Share → Copy link, then paste it above.</p>
         </Empty>
@@ -159,10 +179,114 @@ export function Places() {
         </div>
       )}
 
+      {pinFor && <PinSheet place={pinFor} onClose={() => setPinFor(null)} />}
       {detailsFor && <DetailsSheet x={detailsFor} onClose={() => setDetailsFor(null)} />}
       {form && <PlaceForm initial={form} inboxId={fromInbox} onClose={() => { setForm(null); setFromInbox(null); }} onSaved={() => { setForm(null); setFromInbox(null); }}
         onRemove={form.id ? () => act(() => backend.remove('places', form.id!), 'Place removed').then((ok) => ok && setForm(null)) : undefined} />}
     </div>
+  );
+}
+
+function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
+  places: Place[]; stays: Item[]; selected: string | null; onSelect: (id: string | null) => void;
+  onEdit?: (p: Place) => void; onPin?: (p: Place) => void;
+}) {
+  const { toast } = useTrip();
+  const pins = useMemo<Pin[]>(() => [
+    ...places.filter(hasPin).map((p) => ({ id: p.id, lat: p.lat!, lng: p.lng!, emoji: CATEGORY_META[p.category].emoji, label: p.name })),
+    ...stays.map((i) => ({ id: `stay:${i.id}`, lat: i.lat!, lng: i.lng!, emoji: CATEGORY_META.stay.emoji, label: i.title })),
+  ], [places, stays]);
+  const unpinned = places.filter((p) => !hasPin(p));
+  const place = places.find((p) => p.id === selected);
+  const stay = stays.find((i) => `stay:${i.id}` === selected);
+  return (
+    <>
+      <Suspense fallback={<div className="map-wrap"><div className="map map-loading">Loading map…</div></div>}>
+        <PlacesMap pins={pins} selected={selected} onSelect={onSelect} onLocateError={toast} />
+      </Suspense>
+      {place && (
+        <div className="card map-card">
+          <div className="place-emoji">{CATEGORY_META[place.category].emoji}</div>
+          <div className="place-main">
+            <div className="item-title">{place.name}</div>
+            {place.address && <div className="item-sub">{place.address}</div>}
+            {place.notes && <div className="item-notes map-card-notes">{place.notes}</div>}
+            <div className="item-foot">
+              <MapLinks p={place} />
+              <PhoneLinks phone={place.phone} />
+              {safeHttpUrl(place.source_url) && (
+                <a className="post-link" href={safeHttpUrl(place.source_url)!} target="_blank" rel="noreferrer"><Icon name="external" size={16} />Post</a>
+              )}
+              {onEdit && <button className="link-btn" onClick={() => onEdit(place)}>Details</button>}
+            </div>
+          </div>
+        </div>
+      )}
+      {stay && (
+        <div className="card map-card">
+          <div className="place-emoji">{CATEGORY_META.stay.emoji}</div>
+          <div className="place-main">
+            <div className="item-title">{stay.title}</div>
+            <div className="item-sub">{fmtRange(stay.day, stay.end_day)}{stay.location_name && stay.location_name !== stay.title ? ` · ${stay.location_name}` : ''}</div>
+            <div className="item-foot"><MapLinks p={stay} /></div>
+          </div>
+        </div>
+      )}
+      {unpinned.length > 0 && (
+        <section className="unpinned" aria-label="Not on the map yet">
+          <div className="section-head">
+            <h2 className="section-title">Not on the map yet</h2>
+            <span className="section-meta">{unpinned.length}</span>
+          </div>
+          <div className="unpinned-list">
+            {unpinned.map((p) => (
+              <div key={p.id} className="unpinned-row">
+                <span className="unpinned-emoji">{CATEGORY_META[p.category].emoji}</span>
+                <span className="unpinned-name">{p.name}</span>
+                {onPin && <button className="btn btn-sm" onClick={() => onPin(p)}>Add pin</button>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+/** Pin a place from a Google Maps link: open the search, copy the place's link, paste it here. */
+function PinSheet({ place, onClose }: { place: Place; onClose: () => void }) {
+  const { act, backend } = useTrip();
+  const [link, setLink] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [hint, setHint] = useState('');
+  const search = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([place.name, place.address].filter(Boolean).join(', '))}`;
+  const save = async () => {
+    const url = extractUrl(link);
+    if (!url) return setHint('Paste the link you copied from Google Maps.');
+    setBusy(true);
+    setHint('');
+    let parsed = parseMapsUrl(url);
+    if (parsed?.isShortLink && backend.mode === 'cloud') {
+      const full = await resolveShortLink(url);
+      if (full) parsed = { ...(parseMapsUrl(full) ?? parsed), url, isShortLink: false };
+    }
+    setBusy(false);
+    if (parsed?.lat == null || parsed.lng == null) return setHint('Couldn’t read a pin from that link. In Google Maps, open the place itself (not the search list), then Share → Copy link.');
+    if (await act(() => backend.save('places', { ...place, maps_url: url, lat: parsed!.lat, lng: parsed!.lng }), 'Pin added')) onClose();
+  };
+  return (
+    <Sheet title="Add a pin" onClose={onClose}
+      footer={<><span className="spacer" /><button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" disabled={!link.trim() || busy} onClick={save}>{busy ? '…' : 'Save pin'}</button></>}>
+      <p className="details-for">{place.name}</p>
+      <ol className="pin-steps">
+        <li><a href={search} target="_blank" rel="noreferrer">Find it in Google Maps <Icon name="external" size={14} /></a> and open the right place</li>
+        <li>Tap Share, then Copy link</li>
+        <li>Come back and paste it here</li>
+      </ol>
+      <Field label="Google Maps link"><input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://maps.app.goo.gl/…" inputMode="url" /></Field>
+      {hint && <p className="field-hint">{hint}</p>}
+    </Sheet>
   );
 }
 
@@ -288,7 +412,11 @@ function PlaceForm({ initial, inboxId, onClose, onSaved, onRemove }: { initial: 
   // The phone column arrives with migration 008 (inboxFiles is only loaded once it exists).
   const hasPhone = data.inboxFiles !== undefined || Boolean(initial.phone);
   const save = async () => {
-    const parsed = f.maps_url && f.maps_url !== initial.maps_url ? parseMapsUrl(f.maps_url) : null;
+    let parsed = f.maps_url && f.maps_url !== initial.maps_url ? parseMapsUrl(f.maps_url) : null;
+    if (parsed?.isShortLink && backend.mode === 'cloud') {
+      const full = await resolveShortLink(f.maps_url.trim());
+      if (full) parsed = { ...(parseMapsUrl(full) ?? parsed), isShortLink: false };
+    }
     const row = {
       ...(initial.id ? { id: initial.id } : {}), trip_id: data.trip.id, name: f.name.trim(), category: f.category,
       address: f.address.trim() || null, maps_url: f.maps_url.trim() || null, notes: f.notes.trim() || null,
