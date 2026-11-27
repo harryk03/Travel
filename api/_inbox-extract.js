@@ -1,6 +1,20 @@
 // Pulls place details out of what was shared: Google/Apple Maps share text, captions, bios.
 // Pattern matching only (free, nothing is sent anywhere). Shared with the Vitest suite.
 
+const NAMED = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ', hellip: '…', rsquo: '’', lsquo: '‘', rdquo: '”', ldquo: '“', mdash: '—', ndash: '–' };
+
+/** Turns HTML entities from page previews (&#x1f62e;, &amp;, &#8217; …) back into characters. */
+export function decodeEntities(text) {
+  if (typeof text !== 'string') return text;
+  return text.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e) => {
+    if (e[0] === '#') {
+      const n = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : m;
+    }
+    return NAMED[e.toLowerCase()] ?? m;
+  });
+}
+
 const MAPS_HOST = /^(maps\.app\.goo\.gl|goo\.gl|maps\.apple\.com|(www\.|maps\.)?google\.[a-z.]+)$/i;
 
 /** True for Google Maps and Apple Maps links. */

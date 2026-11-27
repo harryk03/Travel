@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractDetails, findAddress, findPhone, isMapsLink } from '../../api/_inbox-extract.js';
+import { decodeEntities, extractDetails, findAddress, findPhone, isMapsLink } from '../../api/_inbox-extract.js';
 
 describe('findPhone', () => {
   it('reads wa.me links', () => expect(findPhone('Book: wa.me/6282135732415 and 1 more')).toBe('+6282135732415'));
@@ -53,4 +53,11 @@ describe('extractDetails', () => {
     expect(extractDetails('https://www.instagram.com/reel/abc', null, 'https://www.instagram.com/reel/abc'))
       .toEqual({ name: null, address: null, phone: null, maps_url: null });
   });
+});
+
+describe('decodeEntities', () => {
+  it('turns preview codes back into characters', () => {
+    expect(decodeEntities('so me It&#x2019;s quiet &#x1f90d; &amp; more&#x2026; &quot;hi&quot; &#39;x&#39;')).toBe('so me It’s quiet 🤍 & more… "hi" \'x\'');
+  });
+  it('leaves unknown or broken codes alone', () => expect(decodeEntities('&bogus; &#xZZ; 5 & 6')).toBe('&bogus; &#xZZ; 5 & 6'));
 });

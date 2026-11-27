@@ -21,6 +21,9 @@ export function normalizeUrl(raw) {
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
   u.hash = '';
   u.hostname = u.hostname.toLowerCase();
+  // Instagram and TikTok links need no query at all, and both keep adding new random share codes
+  // (igsh, fqnt, hvrq, …), so drop the whole query there. Elsewhere only known tracking keys go.
+  if (/(^|\.)(instagram\.com|instagr\.am|tiktok\.com)$/.test(u.hostname)) u.search = '';
   for (const key of [...u.searchParams.keys()]) if (TRACKING.test(key)) u.searchParams.delete(key);
   u.search = u.searchParams.toString() ? `?${u.searchParams.toString()}` : '';
   if (u.pathname.length > 1) u.pathname = u.pathname.replace(/\/+$/, '');

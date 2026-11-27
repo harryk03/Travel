@@ -1,3 +1,4 @@
+export function decodeEntities(text: string): string;
 export function isMapsLink(url: string): boolean;
 export function findPhone(text: unknown): string | null;
 export function findAddress(text: unknown): string | null;

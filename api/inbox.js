@@ -3,7 +3,7 @@
 // Writes only through the inbox_add_details() database function (or inbox_add() before migration 008), using the public Supabase key; no service-role key is needed.
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { extractUrl, isUnsafeHost, normalizeUrl, sourceOf } from './_inbox-url.js';
-import { extractDetails } from './_inbox-extract.js';
+import { decodeEntities, extractDetails } from './_inbox-extract.js';
 
 const MAX_BODY = 4096;
 const reply = (res, status, text) => {
@@ -43,7 +43,7 @@ async function fetchLimited(url, { timeoutMs = 3000, maxBytes = 300_000, accept 
   return null;
 }
 
-const decode = (s) => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim();
+const decode = (s) => decodeEntities(s).replace(/\s+/g, ' ').trim();
 const meta = (html, prop) => {
   const re = new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]*>`, 'i');
   const tag = html.match(re)?.[0];

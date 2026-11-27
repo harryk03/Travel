@@ -17,6 +17,10 @@ describe('inbox links', () => {
     expect(b).toBe(a);
     expect(normalizeUrl('https://www.tiktok.com/@cafe/video/7312345678901234567?is_from_webapp=1&sender_device=pc&_r=1&_t=8abc'))
       .toBe('https://www.tiktok.com/@cafe/video/7312345678901234567');
+    // New random Instagram share codes (seen in the live inbox) must not create duplicates.
+    expect(normalizeUrl('https://www.instagram.com/reel/Dd8SnegveDP?fqnt=MWZ0MzE2YnN2Yzg0dA%3D%3D')).toBe('https://www.instagram.com/reel/Dd8SnegveDP');
+    expect(normalizeUrl('https://www.instagram.com/reel/DepyPMxyo0R/?hvrq=dmY5YXc1ZDE1aWY3&abc=1')).toBe('https://www.instagram.com/reel/DepyPMxyo0R');
+    expect(normalizeUrl('https://www.tiktok.com/@cafe/video/7312345678901234567?newcode=zz')).toBe('https://www.tiktok.com/@cafe/video/7312345678901234567');
     expect(normalizeUrl('https://example.com/menu?lang=en&utm_campaign=x')).toBe('https://example.com/menu?lang=en');
     expect(normalizeUrl('https://example.com/')).toBe('https://example.com/');
     expect(normalizeUrl('ftp://example.com/file')).toBeNull();

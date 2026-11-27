@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { decodeEntities } from '../../api/_inbox-extract.js';
 import { fmtDay } from '../lib/dates';
 import { fmtPhone, shrinkImage, validPhone, waDigits } from '../lib/images';
 import { extractUrl, isGoogleMapsUrl, parseMapsUrl, resolveShortLink, safeHttpUrl } from '../lib/maps';
@@ -177,9 +178,11 @@ function PhoneLinks({ phone }: { phone?: string | null }) {
   );
 }
 
-function InboxRow({ x, offline, files, onAdd, onDetails, onDismiss, onRestore }: {
+function InboxRow({ x: raw, offline, files, onAdd, onDetails, onDismiss, onRestore }: {
   x: InboxItem; offline: boolean; files: number; onAdd?: () => void; onDetails?: () => void; onDismiss?: () => void; onRestore?: () => void;
 }) {
+  // Items saved before the endpoint decoded captions still hold codes like &#x1f62e;.
+  const x = { ...raw, caption: raw.caption ? decodeEntities(raw.caption) : raw.caption };
   const url = safeHttpUrl(x.url);
   const short = url ? url.replace(/^https?:\/\/(www\.)?/, '') : x.url;
   const title = x.name || x.note || x.caption || short;
