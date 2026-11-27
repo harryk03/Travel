@@ -255,6 +255,7 @@ function MapView({ places, stays, selected, onSelect, onEdit, onPin }: {
             <h2 className="section-title">Not on the map yet</h2>
             <span className="section-meta">{unpinned.length}</span>
           </div>
+          <p className="muted small unpinned-why">Their Map button searches Google Maps by name, but this map needs an exact pin. Add one from the place’s Google Maps link.</p>
           <div className="unpinned-list">
             {unpinned.map((p) => (
               <div key={p.id} className="unpinned-row">

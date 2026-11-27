@@ -474,3 +474,4 @@ button.status:hover { color: var(--text); }
 .quick-emoji { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 12px; }
 .quick-emoji button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-size: 20px; line-height: 1; cursor: pointer; }
 .quick-emoji button.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.unpinned-why { margin: -4px 0 12px; }
