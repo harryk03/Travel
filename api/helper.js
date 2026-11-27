@@ -9,6 +9,8 @@
 //        add keep_open:true to add one of several places from the same item (migration 009); the last add ticks it off
 //   POST /api/helper {action:"update", place, ...same fields; blanks are left as they are}
 //   POST /api/helper {action:"flag", inbox, needs}
+//   POST /api/helper {action:"fill", place, address?, maps_url?, lat?, lng?, phone?, website?, notes?}
+//        fills only EMPTY fields on any place in the trip, including ones people added (migration 011)
 
 const MAX_BODY = 16_384;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -98,7 +100,15 @@ export default async function handler(req, res) {
       if (!UUID.test(String(b.inbox || ''))) return send(res, 400, { error: 'inbox must be an inbox id' });
       return await rpc('helper_flag', { p_inbox: b.inbox, p_needs: str(b.needs, 500) });
     }
-    return send(res, 400, { error: 'action must be add, update or flag' });
+    if (b.action === 'fill') {
+      if (!UUID.test(String(b.place || ''))) return send(res, 400, { error: 'place must be a place id' });
+      const a = placeArgs({ ...b, category: undefined, name: undefined });
+      return await rpc('helper_fill_place', {
+        p_place: b.place, p_address: a.p_address, p_maps_url: a.p_maps_url, p_lat: a.p_lat, p_lng: a.p_lng,
+        p_phone: a.p_phone, p_website: a.p_website ?? null, p_notes: a.p_notes,
+      });
+    }
+    return send(res, 400, { error: 'action must be add, update, flag or fill' });
   } catch (e) {
     const timeout = e && (e.name === 'TimeoutError' || e.name === 'AbortError');
     return send(res, timeout ? 504 : 400, { error: timeout ? 'Trip HQ did not answer in time' : String(e.message || e).slice(0, 200) });
