@@ -514,3 +514,7 @@ details.unpinned[open] summary::before { transform: rotate(90deg); }
 /* Audit fixes: small text buttons and links get at least a 24 px tall tap area (WCAG 2.5.8) without looking bigger. */
 .link-btn, .map-links a, .inbox-actions a, .post-link, button.status { min-height: 24px; }
 .link-btn { display: inline-flex; align-items: center; }
+
+/* Place cards: a short preview only. The full description lives in the place's listing (tap the card). */
+.place-card .item-sub { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+.place-card .item-notes { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; }
