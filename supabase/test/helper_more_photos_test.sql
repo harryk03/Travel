@@ -8,8 +8,9 @@ set role anon;
 select helper_add_photo(:'trip', :'hkey', :'bare', 'image/jpeg', repeat('D', 300), repeat('d', 60)) from generate_series(1, 4);
 reset role;
 select t.ok((select count(*) from place_photos where place_id = :'bare') >= 5, 'helper adds more photos to a place with only its photos');
+select 6 - count(*) as room from place_photos where place_id = :'bare' \gset
 set role anon;
-select helper_add_photo(:'trip', :'hkey', :'bare', 'image/jpeg', repeat('D', 300), repeat('d', 60)) where (select count(*) from place_photos where place_id = :'bare') < 6;
+select helper_add_photo(:'trip', :'hkey', :'bare', 'image/jpeg', repeat('D', 300), repeat('d', 60)) from generate_series(1, :room);
 select t.rejects(format('select helper_add_photo(%L, %L, %L, %L, %L, %L)', :'trip', :'hkey', :'bare', 'image/jpeg', repeat('D', 300), repeat('d', 60)), 'max 6');
 select t.rejects(format('select helper_add_photo(%L, %L, %L, %L, %L, %L)', :'trip', :'hkey', :'pl', 'image/jpeg', repeat('D', 300), repeat('d', 60)), 'not on a place with your photos');
 reset role;
