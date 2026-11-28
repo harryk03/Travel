@@ -5,12 +5,12 @@
 :root {
   --bg: #fafafa; --sidebar: #f4f4f5; --card: #ffffff; --raised: #f4f4f5;
   --line: rgba(23, 23, 23, .08); --line-strong: rgba(23, 23, 23, .14);
-  --text: #171717; --text2: #525252; --muted: #737373;
+  --text: #171717; --text2: #525252; --muted: #666666;
   --accent: #0e7c72; --accent-ink: #ffffff; --accent-soft: rgba(14, 124, 114, .1);
   --primary-bg: #171717; --primary-ink: #ffffff;
-  --pos: #16a34a; --warn: #b45309; --neg: #dc2626; --warn-soft: #fff4e5;
+  --pos: #15803d; --warn: #b45309; --neg: #dc2626; --warn-soft: #fff4e5;
   --shadow: 0 1px 2px rgba(0, 0, 0, .05); --float: 0 8px 24px rgba(0, 0, 0, .08);
-  --paper: #f5efe4; --paper-2: #efe7d8; --paper-ink: #1f1b16; --paper-2nd: #5e554a; --paper-muted: #7b7266; --paper-line: rgba(31, 27, 22, .14);
+  --paper: #f5efe4; --paper-2: #efe7d8; --paper-ink: #1f1b16; --paper-2nd: #5e554a; --paper-muted: #665e52; --paper-line: rgba(31, 27, 22, .14);
   --ease: cubic-bezier(.22, 1, .36, 1);
   --sans: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -20,7 +20,7 @@
   :root:not([data-theme="light"]) {
     --bg: #141415; --sidebar: #0f0f10; --card: #19191b; --raised: #232325;
     --line: rgba(237, 237, 237, .08); --line-strong: rgba(237, 237, 237, .14);
-    --text: #ededed; --text2: #a1a1a6; --muted: #85858b;
+    --text: #ededed; --text2: #a1a1a6; --muted: #9b9ba1;
     --accent: #4cc2b2; --accent-ink: #0b1f1c; --accent-soft: rgba(76, 194, 178, .12);
     --primary-bg: #ededed; --primary-ink: #141415;
     --pos: #4cc38a; --warn: #e2ad5b; --neg: #e5484d; --warn-soft: rgba(226, 173, 91, .12);
@@ -510,3 +510,7 @@ details.unpinned[open] summary::before { transform: rotate(90deg); }
 .detail-meta { display: flex; align-items: baseline; gap: 6px; color: var(--text2); font-size: 14px; line-height: 20px; margin-bottom: 8px; overflow-wrap: anywhere; }
 .detail-links { margin-bottom: 12px; }
 .detail-notes { white-space: pre-wrap; font-size: 15px; line-height: 22px; color: var(--text); margin: 4px 0 12px; overflow-wrap: anywhere; }
+
+/* Audit fixes: small text buttons and links get at least a 24 px tall tap area (WCAG 2.5.8) without looking bigger. */
+.link-btn, .map-links a, .inbox-actions a, .post-link, button.status { min-height: 24px; }
+.link-btn { display: inline-flex; align-items: center; }
